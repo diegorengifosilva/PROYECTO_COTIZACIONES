@@ -1233,7 +1233,14 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       ),
 
     onSuccess: (_, texto) => {
-      setCondicionesHtml(texto); // 👈 clave
+      // 🔥 sincroniza cache inmediatamente
+      queryClient.setQueryData(
+        ["condiciones-generales", numReg],
+        texto
+      );
+
+      // 🔥 mantiene coherencia global
+      setCondicionesHtml(texto);
 
       toast.success("Condiciones guardadas correctamente");
 

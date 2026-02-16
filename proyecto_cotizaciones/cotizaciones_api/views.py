@@ -1656,12 +1656,21 @@ def build_cotizacion_pdf_context(num_reg):
         "forma_pago": cotizacion.fpago,
         "lugar_entrega": cotizacion.lugar,
         "moneda": "Dólares" if cotizacion.tmone == "D" else "Soles",
+        "moneda_simbolo": "USD" if cotizacion.tmone == "D" else "PEN",
         "incluye_igv": cotizacion.igv == "S",
         "validez": {
             "cantidad": cotizacion.valid,
             "tipo": "Días" if cotizacion.acu_s == "D" else "Semanas" if cotizacion.acu_s == "S" else "Meses",
         },
     }
+
+    # =========================
+    # CONVERSIÓN MONEDA
+    # =========================
+    def convertir(valor, cotizacion):
+        if cotizacion.tmone == "S" and cotizacion.tcamb:
+            return (valor or Decimal("0.00")) * cotizacion.tcamb
+        return valor or Decimal("0.00")
 
     # =========================
     # SUMINISTROS
@@ -1676,7 +1685,7 @@ def build_cotizacion_pdf_context(num_reg):
         if s.nig == 0:
 
             can = s.can or Decimal("1.00")
-            tot = s.tot or Decimal("0.00")
+            tot = convertir(s.tot, cotizacion)
 
             grupos[s.cog] = {
                 "cog": s.cog,
@@ -1692,8 +1701,8 @@ def build_cotizacion_pdf_context(num_reg):
 
         elif s.nig == 1 and s.cog in grupos:
 
-            pu = s.puc or Decimal("0.00")
-            tot = s.tot or Decimal("0.00")
+            pu = convertir(s.puc, cotizacion)
+            tot = convertir(s.tot, cotizacion)
 
             grupos[s.cog]["items"].append({
                 "codigo": s.cod,
@@ -1726,7 +1735,7 @@ def build_cotizacion_pdf_context(num_reg):
         if s.nig == 0:
 
             can = s.can or Decimal("1.00")
-            tot = s.tot or Decimal("0.00")
+            tot = convertir(s.tot, cotizacion)
 
             servicios_grupos[s.cog] = {
                 "cog": s.cog,
@@ -1743,8 +1752,8 @@ def build_cotizacion_pdf_context(num_reg):
 
         elif s.nig == 1 and s.cog in servicios_grupos:
 
-            pu = s.puc or Decimal("0.00")
-            tot = s.tot or Decimal("0.00")
+            tot = convertir(s.tot, cotizacion)
+            pu = convertir(s.puc, cotizacion)
 
             servicios_grupos[s.cog]["items"].append({
                 "codigo": s.cod,
@@ -1769,8 +1778,8 @@ def build_cotizacion_pdf_context(num_reg):
     # =========================
     # CONTEXT FINAL
     # =========================
-    descuento = cotizacion.des_m or Decimal("0.00")
-    total_bruto = cotizacion.tot_c or Decimal("0.00")
+    descuento = convertir(cotizacion.des_m, cotizacion)
+    total_bruto = convertir(cotizacion.tot_c, cotizacion)
 
     total_final = total_bruto - descuento
 
@@ -1784,6 +1793,7 @@ def build_cotizacion_pdf_context(num_reg):
             "descuento": descuento,
             "total_cotizacion": total_final,
             "moneda": cabecera["moneda"],
+            "moneda_simbolo": cabecera["moneda_simbolo"],
             "incluye_igv": cabecera["incluye_igv"],
         },
         "condiciones_generales": {

@@ -1,5 +1,6 @@
 {% load static %}
 {% load humanize %}
+{% load currency %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -486,8 +487,6 @@
 </head>
 <body>
 
-
-
 <div class="page cover">
     <div class="cover-accent"></div>
     <div class="header-container">
@@ -786,11 +785,11 @@
         <table class="tabla-moderna">
             <thead>
                 <tr>
-                    <th style="width:8%" class="text-center">Ítem</th>
-                    <th style="width:42%">Descripción del Grupo</th>
-                    <th style="width:10%" class="text-center">Cant.</th>
-                    <th style="width:20%" class="text-right">Unitario ({{ totales.moneda }})</th>
-                    <th style="width:20%" class="text-right">Total ({{ totales.moneda }})</th>
+                    <th style="width:5%" class="text-center">Ítem</th>
+                    <th style="width:60%">Descripción del Grupo</th>
+                    <th style="width:5%" class="text-center">Cant.</th>
+                    <th style="width:15%" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                    <th style="width:15%" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -799,8 +798,8 @@
                     <td class="text-center">{{ forloop.counter|stringformat:"02d" }}</td>
                     <td class="font-bold">{{ grupo.titulo }}</td>
                     <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
-                    <td class="text-right">{{ grupo.total|floatformat:2 }}</td>
-                    <td class="text-right font-bold">{{ grupo.total_grupo|floatformat:2 }}</td>
+                    <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
+                    <td class="text-right font-bold">{{ grupo.total_grupo|moneda:totales.moneda }}</td>
                 </tr>
                 {% endfor %}
 
@@ -810,8 +809,8 @@
                         <td class="text-center">{{ forloop.counter|add:offset|stringformat:"02d" }}</td>
                         <td class="font-bold">{{ grupo.titulo }}</td>
                         <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
-                        <td class="text-right">{{ grupo.total|floatformat:2 }}</td>
-                        <td class="text-right font-bold">{{ grupo.total_servicio|floatformat:2 }}</td>
+                        <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
+                        <td class="text-right font-bold">{{ grupo.total_servicio|moneda:totales.moneda }}</td>
                     </tr>
                     {% endfor %}
                 {% endwith %}
@@ -823,7 +822,7 @@
                         DESCUENTO:
                     </td>
                     <td class="text-right total-value muted">
-                        {{ totales.descuento|floatformat:2 }}
+                        {{ totales.descuento|moneda:totales.moneda }}
                     </td>
                 </tr>
 
@@ -833,7 +832,7 @@
                         COSTO TOTAL:
                     </td>
                     <td class="text-right total-value main">
-                        {{ totales.total_cotizacion|floatformat:2 }}
+                        {{ totales.total_cotizacion|moneda:totales.moneda }}
                     </td>
                 </tr>
             </tfoot>
@@ -846,12 +845,12 @@
                 <table class="tabla-moderna">
                     <thead>
                         <tr>
-                            <th style="width:8%" class="text-center">Ítem</th>
-                            <th style="width:42%" class="text-center">Descripción Técnica</th>
-                            <th style="width:10%" class="text-center">U.M.</th>
-                            <th style="width:10%" class="text-center">Cant.</th>
-                            <th style="width:15%" class="text-center">P. Unit.</th>
-                            <th style="width:15%" class="text-center">P. Total</th>
+                            <th style="width:5%" class="text-center">Ítem</th>
+                            <th style="width:50%" class="text-center">Descripción Técnica</th>
+                            <th style="width:5%" class="text-center">U.M.</th>
+                            <th style="width:5%" class="text-center">Cant.</th>
+                            <th style="width:15%" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                            <th style="width:15%" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -861,15 +860,15 @@
                             <td style="font-size: 10px; line-height: 1.2;">{{ item.descripcion|linebreaksbr }}</td>
                             <td class="text-center">{{ item.unidad }}</td>
                             <td class="text-center">{{ item.cantidad|floatformat:2 }}</td>
-                            <td class="text-right">{{ item.precio_unitario|floatformat:2 }}</td>
-                            <td class="text-right font-bold">{{ item.total|floatformat:2 }}</td>
+                            <td class="text-right">{{ item.precio_unitario|moneda:totales.moneda }}</td>
+                            <td class="text-right font-bold">{{ item.total|moneda:totales.moneda }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr class="total-fila">
                             <td colspan="5" class="text-right">Subtotal Grupo:</td>
-                            <td class="text-right">{{ grupo.subtotal_tot_items|floatformat:2 }}</td>
+                            <td class="text-right">{{ grupo.subtotal_tot_items|moneda:totales.moneda }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -885,11 +884,11 @@
                     <table class="tabla-moderna">
                         <thead>
                             <tr>
-                                <th style="width:8%" class="text-center">Ítem</th>
-                                <th style="width:52%">Descripción del Servicio</th>
-                                <th style="width:10%" class="text-center">Cant.</th>
-                                <th style="width:15%" class="text-right">P. Unit.</th>
-                                <th style="width:15%" class="text-right">P. Total</th>
+                                <th style="width:5%" class="text-center">Ítem</th>
+                                <th style="width:60%">Descripción del Servicio</th>
+                                <th style="width:5%" class="text-center">Cant.</th>
+                                <th style="width:15%" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                                <th style="width:15%" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -897,8 +896,8 @@
                                 <td class="text-center">01</td>
                                 <td style="font-size: 10px; color: #444;">{{ grupo.detalle|linebreaksbr }}</td>
                                 <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
-                                <td class="text-right">{{ grupo.total|floatformat:2 }}</td>
-                                <td class="text-right font-bold">{{ grupo.total_servicio|floatformat:2 }}</td>
+                                <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
+                                <td class="text-right font-bold">{{ grupo.total_servicio|moneda:totales.moneda }}</td>
                             </tr>
                         </tbody>
                     </table>

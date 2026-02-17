@@ -1744,7 +1744,7 @@ def build_cotizacion_pdf_context(num_reg):
                 "cantidad": can,
                 "total": tot,
                 "total_servicio": tot * can,
-                "detalle": html_to_text(s.tog) if s.tog else "",
+                "detalle": s.tog or "",
                 "subtotal_pu_items": Decimal("0.00"),
                 "subtotal_tot_items": Decimal("0.00"),
                 "items": [],
@@ -1783,6 +1783,48 @@ def build_cotizacion_pdf_context(num_reg):
 
     total_final = total_bruto - descuento
 
+    # =========================
+    # ÍNDICE DINÁMICO
+    # =========================
+    indice = []
+    contador = 1
+
+    # 1
+    indice.append({
+        "numero": contador,
+        "titulo": "Resumen de Propuesta y Condiciones"
+    })
+    contador += 1
+
+    # 2
+    indice.append({
+        "numero": contador,
+        "titulo": "Presupuesto General"
+    })
+    contador += 1
+
+    # SUMINISTROS
+    for g in suministros:
+        indice.append({
+            "numero": contador,
+            "titulo": f"Detalle: {g['titulo']}"
+        })
+        contador += 1
+
+    # SERVICIOS
+    for s in servicios:
+        indice.append({
+            "numero": contador,
+            "titulo": f"Detalle: {s['titulo']}"
+        })
+        contador += 1
+
+    # CONDICIONES
+    indice.append({
+        "numero": contador,
+        "titulo": "Condiciones Generales y Garantías"
+    })
+
     return {
         "cabecera": cabecera,
         "suministros": suministros,
@@ -1799,6 +1841,7 @@ def build_cotizacion_pdf_context(num_reg):
         "condiciones_generales": {
             "condiciones": cotizacion.acu_e,
         },
+        "indice": indice,
     }
 
 from pathlib import Path

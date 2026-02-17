@@ -483,6 +483,49 @@
             height: 18px;
             vertical-align: middle;
         }
+
+        /* ===== TEXTO ENRIQUECIDO SERVICIOS ===== */
+        .rich-text {
+            font-size: 10px;
+            line-height: 1.4;
+            color: #444;
+            text-align: left;
+        }
+
+        /* PÁRRAFOS */
+        .rich-text p {
+            margin: 4px 0;
+        }
+
+        /* LISTAS */
+        .rich-text ul,
+        .rich-text ol {
+            margin: 6px 0 6px 18px;
+            padding: 0;
+        }
+
+        .rich-text li {
+            margin-bottom: 3px;
+        }
+
+        /* NEGRITA Y CURSIVA */
+        .rich-text strong {
+            font-weight: 600;
+        }
+
+        .rich-text em {
+            font-style: italic;
+        }
+
+        /* BLOCKQUOTE */
+        .rich-text blockquote {
+            border-left: 3px solid var(--primary);
+            padding-left: 8px;
+            margin: 6px 0;
+            color: #555;
+            font-style: italic;
+        }
+
     </style>
 </head>
 <body>
@@ -713,59 +756,18 @@
 
     <div class="indice-contenedor">
 
-        <!-- 1 -->
-        <div class="indice-item">
-            <span class="indice-numero">{{ 1|stringformat:"02d" }}</span>
-            <span class="indice-titulo">Resumen de Propuesta y Condiciones</span>
-            <span class="indice-puntos"></span>
-        </div>
-
-        <!-- 2 -->
-        <div class="indice-item">
-            <span class="indice-numero">{{ 2|stringformat:"02d" }}</span>
-            <span class="indice-titulo">Presupuesto General</span>
-            <span class="indice-puntos"></span>
-        </div>
-
-
-        <!-- SUMINISTROS -->
-        {% for grupo in suministros %}
+        {% for item in indice %}
         <div class="indice-item">
             <span class="indice-numero">
-                {{ forloop.counter|add:2|stringformat:"02d" }}
+                {{ item.numero|stringformat:"02d" }}
             </span>
-            <span class="indice-titulo">Detalle: {{ grupo.titulo }}</span>
+            <span class="indice-titulo">{{ item.titulo }}</span>
             <span class="indice-puntos"></span>
         </div>
         {% endfor %}
 
-
-        <!-- SERVICIOS -->
-        {% with offset=suministros|length|add:2 %}
-            {% for grupo in servicios %}
-            <div class="indice-item">
-                <span class="indice-numero">
-                    {{ forloop.counter|add:offset|stringformat:"02d" }}
-                </span>
-                <span class="indice-titulo">Detalle: {{ grupo.titulo }}</span>
-                <span class="indice-puntos"></span>
-            </div>
-            {% endfor %}
-        {% endwith %}
-
-
-        <!-- CONDICIONES -->
-        {% with total=suministros|length|add:servicios|length|add:2 %}
-        <div class="indice-item">
-            <span class="indice-numero">
-                {{ total|add:1|stringformat:"02d" }}
-            </span>
-            <span class="indice-titulo">Condiciones Generalessss y Garantías</span>
-            <span class="indice-puntos"></span>
-        </div>
-        {% endwith %}
-
     </div>
+
 </div>
 
 
@@ -894,7 +896,7 @@
                         <tbody>
                             <tr>
                                 <td class="text-center">01</td>
-                                <td style="font-size: 10px; color: #444;">{{ grupo.detalle|linebreaksbr }}</td>
+                                <td class="rich-text">{{ grupo.detalle|safe }}</td>
                                 <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
                                 <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
                                 <td class="text-right font-bold">{{ grupo.total_servicio|moneda:totales.moneda }}</td>

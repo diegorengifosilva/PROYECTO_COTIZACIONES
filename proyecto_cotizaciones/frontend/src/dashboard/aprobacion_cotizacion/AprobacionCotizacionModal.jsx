@@ -611,6 +611,16 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     };
   };
 
+  const recalcularItemImport = (item) => {
+    const cantidad = Number(item.can || 0);
+    const precio = Number(item.val || item.puc || 0);
+
+    return {
+      ...item,
+      tot: cantidad * precio,
+    };
+  };
+
   // 🔹 Construye los ítems desde el XLS usando la MISMA lógica que RegistroItemModal
   const buildGruposFromXLS = async (
     excelRows,
@@ -806,11 +816,18 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
         actualizados++;
 
-        mapaItems.set(key, {
-          ...existente,
-          can: Number(existente.can || 0) + Number(item.can || 0),
-        });
+        const nuevaCantidad =
+          Number(existente.can || 0) + Number(item.can || 0);
 
+        let actualizado = {
+          ...existente,
+          can: nuevaCantidad,
+        };
+
+        // 🔥 recalculo inmediato
+        actualizado = recalcularItemImport(actualizado);
+
+        mapaItems.set(key, actualizado);
       } else {
         mapaItems.set(key, item);
       }
@@ -822,15 +839,30 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     // 🔥 Recalculo automático
     // =====================
     grupo.items = todosLosItems.map((item, idx) => {
-      const recalculado = recalcularTotales
-        ? recalcularTotales(item)
-        : item;
+      const recalculado = recalcularItemImport(item);
 
       return {
         ...recalculado,
         nig: idx + 1,
       };
     });
+
+    // =====================
+    // 🔥 Recalculo total grupo
+    // =====================
+    const subtotal = grupo.items.reduce(
+      (acc, item) => acc + Number(item.tot || 0),
+      0
+    );
+
+    const cantidadTotal = grupo.items.reduce(
+      (acc, item) => acc + Number(item.can || 0),
+      0
+    );
+
+    grupo.subtotal = subtotal;
+    grupo.total = subtotal;
+    grupo.cantidad = cantidadTotal;
 
     // =====================
     // 🔥 Logs UX

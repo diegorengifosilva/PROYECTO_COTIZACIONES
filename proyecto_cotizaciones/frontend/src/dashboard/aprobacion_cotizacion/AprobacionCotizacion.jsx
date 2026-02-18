@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
-import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User } from "lucide-react";
+import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User, MoreHorizontal, ClipboardCheck, LayoutDashboard , History, Globe, ListTodo, Layout, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -16,6 +16,9 @@ import { getEnvioColor, getEnvioNombre, ENVIO_STATE_COLORS } from "@/components/
 import AprobacionCotizacionModal from "@/dashboard/aprobacion_cotizacion/AprobacionCotizacionModal.jsx";
 import { useNavigate } from "react-router-dom";
 import CotizacionNuevaModal from "./CotizacionNuevaModal";
+import TablaCoti from "../../components/TablaCoti";
+import TablaHistorial from "../../components/TablaHistorial";
+import KpisCotizaciones from "../../components/KpisCotizaciones";
 
 const fetchCotizacionesAprobacion = async ({ queryKey }) => {
   const [_key, params] = queryKey;
@@ -92,6 +95,8 @@ export default function AprobacionCotizacion() {
   const { scrollY } = useScroll();
   const shadowOpacity = useTransform(scrollY, [0, 50], [0, 0.25]);
   const blurValue = useTransform(scrollY, [0, 100], [4, 8]);
+
+  const [tabActiva, setTabActiva] = useState("resumen");
 
   // Efecto scroll flotante
   useEffect(() => {
@@ -171,47 +176,172 @@ export default function AprobacionCotizacion() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen w-full flex flex-col bg-gray-50 font-sans"
+      className="min-h-screen w-full flex flex-col bg-white font-sans"
     >
-      <div className="flex-1 flex flex-col py-[clamp(8px,2vw,24px)] px-[clamp(8px,2vw,24px)]">
+      <div className="flex-1 flex flex-col">
 
-        {/* HEADER */}
+        {/* HEADER ESTILO ERP COMPACTO */}
         <motion.div
           style={{
-            boxShadow: shadowOpacity.get() > 0 ? `0 2px 8px rgba(0,0,0,${shadowOpacity.get()})` : "none",
+            boxShadow: shadowOpacity.get() > 0 ? "0 2px 8px rgba(0,0,0,0.04)" : "none",
             backdropFilter: `blur(${blurValue.get()}px)`,
           }}
-          className="sticky top-0 z-30 bg-white/90 border-b border-gray-200 rounded-2xl shadow-md px-[clamp(12px,2vw,20px)] py-[clamp(8px,1.2vw,12px)] mb-[clamp(10px,2vw,16px)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[clamp(8px,1.5vw,12px)]"
+          className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 pt-4 flex flex-col gap-1"
         >
-          <div className="flex-1 min-w-0">
-            <motion.h1
-              className="font-bold flex items-center gap-3 truncate"
-              style={{ fontSize: "clamp(1rem,2.2vw,2rem)" }}
-            >
-              <BriefcaseBusiness className="w-[clamp(20px,3vw,30px)] h-[clamp(20px,3vw,30px)] text-gray-900" />
-              Aprobación de Cotizaciones
-            </motion.h1>
-            <motion.p
-              className="mt-1 text-gray-600 italic truncate"
-              style={{ fontSize: "clamp(0.7rem,0.9vw,1rem)" }}
-            >
-              Gestión y aprobación de <span className="font-semibold text-blue-600">cotizaciones pendientes</span>.
-            </motion.p>
-          </div>
 
-          {/* BOTÓN NUEVA COTIZACIÓN */}
-          <div className="flex flex-wrap gap-2 justify-end">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          {/* TOP */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+            {/* IZQUIERDA */}
+            <div className="flex-1 min-w-0">
+
+              {/* Breadcrumb */}
+              <nav className="flex items-center gap-2 text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">
+                <span className="hover:text-cyan-600 cursor-pointer transition-colors">Comercial</span>
+                <span>/</span>
+                <span>Cotizaciones</span>
+              </nav>
+
+              {/* Título */}
+              <div className="flex items-center gap-2">
+                <div className="bg-cyan-600/10 text-cyan-700 w-7 h-7 rounded-md flex items-center justify-center shrink-0">
+                  <BriefcaseBusiness className="w-4 h-4" />
+                </div>
+
+                <h1 className="text-lg font-semibold text-slate-800 tracking-tight truncate">
+                  Aprobación de Cotizaciones
+                </h1>
+              </div>
+            </div>
+
+
+            {/* ACCIONES DINÁMICAS */}
+            <div className="flex items-center gap-2">
+
               <Button
                 onClick={() => setOpenNueva(true)}
-                variant="ghost"
-                className="text-[11px] font-black uppercase tracking-widest text-teal-700 hover:bg-teal-100 border border-transparent hover:border-teal-200 rounded-xl h-9 px-8 transition-all"
-              > 
-                <FilePlus className="w-4 h-4" /> Nueva Cotización
+                className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium px-4 h-8 rounded-md flex items-center gap-2 shadow-sm transition"
+              >
+                <FilePlus size={14} />
+                Nueva
               </Button>
-            </motion.div>
+
+              <button className="p-1.5 hover:bg-slate-100 rounded-md text-slate-500 transition">
+                <MoreHorizontal size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* SUBNAV ESTILO JIRA */}
+          <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
+            {[
+              { id: "resumen", label: "Resumen", icon: <Globe size={16} /> },
+              { id: "pendientes", label: "Cotizaciones", icon: <ListTodo size={16} /> },
+              { id: "tablero", label: "Tablero", icon: <Layout size={16} /> },
+              { id: "historial", label: "Historial", icon: <History size={16} /> },
+            ].map((tab) => {
+              const isActive = tabActiva === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setTabActiva(tab.id)}
+                  className={`group relative flex items-center gap-2 px-3 pb-3 text-sm font-medium transition-all outline-none ${
+                    isActive 
+                      ? "text-cyan-600" 
+                      : "text-slate-600 hover:bg-slate-50 rounded-t-sm"
+                  }`}
+                >
+                  {/* Icono con color dinámico */}
+                  <span className={`${isActive ? "text-cyan-600" : "text-slate-400 group-hover:text-slate-600"}`}>
+                    {tab.icon}
+                  </span>
+                  
+                  <span>{tab.label}</span>
+
+                  {/* Indicador Activo (Línea azul de Jira) */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute bottom-0 left-0 right-0 h-[3px] bg-cyan-600 rounded-t-full"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+            
+            {/* Botón "+" de Jira para añadir más tabs */}
+            <button className="p-1.5 mb-2 ml-1 text-slate-500 hover:bg-slate-100 rounded transition-colors">
+              <Plus size={18} />
+            </button>
           </div>
         </motion.div>
+
+        {/* CONTENIDO DINÁMICO */}
+        <div className="p-6 flex flex-col flex-1 gap-6">
+          {tabActiva === "resumen" && (
+            <KpisCotizaciones stats={stats} isFetching={isFetching} />
+          )}
+
+          {tabActiva === "pendientes" && (
+            <TablaCoti
+              data={cotizacionesFiltradas}
+              clientesMap={clientesMap}
+              isFetching={isFetching}
+              onRowClick={(c) => {
+                setCotizacionSeleccionada(c);
+                setDetalleOpen(true);
+              }}
+              getEnvioColor={getEnvioColor}
+              getEnvioNombre={getEnvioNombre}
+              
+              // 1. Cálculo de filtros activos para el Badge del botón
+              activeFiltersCount={Object.values(currentFilters).filter(v => v !== "%" && v !== "" && v !== annoActual).length}
+              
+              // 2. Acción de limpiar
+              onClearFilters={() => setCurrentFilters({
+                anno: new Date().getFullYear(),
+                mes: "%", cliente: "%", estado: "%", area: "%", envio: "%",
+                campo: "", valor: "", generalCampo: "", generalValor: "",
+                index: 1, num_regs: 10
+              })}
+              
+              // 3. El componente inyectado (Desnudado para el Popover)
+              filterComponent={
+                <FilterCard
+                  dashboard="aprobacion-cotizaciones"
+                  // Clave: Sin sombras ni bordes porque el Popover ya los tiene
+                  className="w-full bg-transparent shadow-none border-none p-0 m-0"
+                  compact={true}
+                  processing={processingFilters}
+                  onReport={handleReport}
+                  onProcess={async (filters, event) =>{
+                    if (event) event.preventDefault();
+                    setProcessingFilters(true);
+                    try {
+                      const params = {
+                        anno: filters.anio || annoActual,
+                        mes: filters.mes || "%",
+                        cliente: filters.cliente || "%",
+                        estado: filters.estado || "%",
+                        area: filters.area || "%",
+                        envio: filters.envio || "%",
+                        ...(filters.campo && filters.valor ? { campo: filters.campo, valor: filters.valor } : {}),
+                        ...(filters.fechaInicio ? { fechaInicio: filters.fechaInicio } : {}),
+                        ...(filters.fechaFin ? { fechaFin: filters.fechaFin } : {}),
+                      };
+                      setCurrentFilters(params);
+                    } finally {
+                      setProcessingFilters(false);
+                    }
+                  }}
+                />
+              }
+            />
+          )}
+
+          {tabActiva === "historial" &&<TablaHistorial />}
+        </div>
 
         {/* SECCIÓN KPIs - V&C BUSINESS INTELLIGENCE */}
         <div className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mb-10 w-full">
@@ -360,127 +490,6 @@ export default function AprobacionCotizacion() {
           />
         </div>
 
-        {/* TABLA DE COTIZACIONES - V&C ENTERPRISE DEFINITIVE */}
-        <div className="hidden md:block w-full flex-1 overflow-auto relative rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
-          {isFetching && (
-            <div className="absolute inset-0 z-30 bg-white/60 backdrop-blur-[2px] flex items-center justify-center transition-all">
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative">
-                  <Loader className="w-10 h-10 animate-spin text-teal-600" />
-                  <div className="absolute inset-0 rounded-full border-4 border-teal-100 opacity-20"></div>
-                </div>
-                <span className="text-[10px] font-[900] text-slate-500 uppercase tracking-[0.25em] animate-pulse">
-                  Sincronizando Datos
-                </span>
-              </div>
-            </div>
-          )}
-
-          <Table
-            /* CABECERAS: Estilo "High-Contrast Enterprise" */
-            headers={[
-              "Fecha",
-              "Cotización",
-              "Referencia",
-              "Cliente / Representante",
-              "Área",
-              "Estado",
-              "Importe",
-              "",
-              ""
-            ].map(h => (
-              <span className="text-sm font-[950] py-1.5 uppercase tracking-[0.2em] text-slate-800 text-center block">
-                {h}
-              </span>
-            ))}
-
-            data={cotizacionesFiltradas}
-
-            /* 👉 CLICK EN TODA LA FILA */
-            onRowClick={(c) => {
-              setCotizacionSeleccionada(c);
-              setDetalleOpen(true);
-            }}
-
-            renderRow={(c) => [
-              // 1. FECHA
-              <span className="text-xs font-semibold text-slate-800 tabular-nums text-center leading-none">
-                {c.fecha}
-              </span>,
-
-              // 2. COTIZACIÓN
-              <span className="text-xs font-semibold text-slate-800 text-left tracking-tight uppercase leading-none">
-                {c.numero}
-              </span>,
-
-              // 3. REFERENCIA
-              <span
-                className="text-xs text-slate-800 font-semibold text-left truncate max-w-[400px] block leading-none"
-                title={c.referencia}
-              >
-                {c.referencia || "—"}
-              </span>,
-
-              // 4. CLIENTE / REPRESENTANTE
-              <div className="flex flex-col py-1 max-w-[300px] text-left leading-tight">
-                <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight">
-                  {clientesMap[c.cliente_codigo] ?? "No Identificado"}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1 h-1 rounded-full bg-teal-400" />
-                  <span className="text-[9px] font-bold text-teal-600/80 uppercase tracking-wide">
-                    {c.cliente_nombre || "Sin asignar"}
-                  </span>
-                </div>
-              </div>,
-
-              // 5. ÁREA
-              <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight text-left bg-slate-50 px-2 py-[2px] rounded-md border border-slate-100">
-                {c.area_nombre}
-              </span>,
-
-              // 6. ESTADO
-              <span className="text-xs font-semibold uppercase tracking-wide text-left text-slate-800 leading-none">
-                {c.estado_nombre}
-              </span>,
-
-              // 7. IMPORTE
-              <div className="text-left py-1">
-                <span className="text-xs font-bold text-slate-800 tabular-nums">
-                  {c.tot_c}
-                </span>
-              </div>,
-
-              // 8. BOTÓN — evita doble trigger
-              <div className="flex justify-start">
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCotizacionSeleccionada(c);
-                      setDetalleOpen(true);
-                    }}
-                    className="h-7 w-7 p-0 rounded-2xl bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 border border-transparent hover:border-teal-100 transition-all shadow-none hover:shadow-sm"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                </motion.div>
-              </div>,
-
-              // 9. ENVÍO
-              <div className="flex items-center justify-start">
-                <div
-                  className="w-3.5 h-3.5 rounded-full shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] border border-white ring-1 ring-slate-200"
-                  style={{ backgroundColor: getEnvioColor(c.envio) }}
-                  title={getEnvioNombre(c.envio)}
-                />
-              </div>,
-            ]}
-          />
-        </div>
-
         {/* CARDS MOBILE */}
         <div className="flex flex-col gap-3 md:hidden">
           {cotizacionesFiltradas.map(c => (
@@ -503,33 +512,6 @@ export default function AprobacionCotizacion() {
                 <div className="flex justify-between"><span>Importe:</span><span>{c.tot_c}</span></div>
               </div>
             </motion.div>
-          ))}
-        </div>
-
-        {/* LEYENDA DE ESTADOS */}
-        <div className="
-          flex flex-wrap 
-          justify-center md:justify-start 
-          items-center 
-          gap-3 md:gap-4 
-          p-3 
-          mt-4 
-          rounded-xl 
-          border border-gray-200 
-          bg-white 
-          shadow-sm 
-          w-full
-        ">
-          {[
-            { label: "Pendiente de Envio para Revision", color: ENVIO_STATE_COLORS["0"] },
-            { label: "Pendiente de Envio para Aprobacion", color: ENVIO_STATE_COLORS["1"] },
-            { label: "Pendiente de Envio para Cliente", color: ENVIO_STATE_COLORS["2"] },
-            { label: "Enviado al Cliente", color: ENVIO_STATE_COLORS["3"] },
-          ].map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-2 min-w-[120px] md:min-w-[140px]">
-              <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color }}></span>
-              <span className="text-gray-600 truncate text-xs md:text-[clamp(0.65rem, 1vw, 1rem)]">{label}</span>
-            </div>
           ))}
         </div>
 

@@ -186,23 +186,26 @@ export default function AdjuntosModal({ open, onClose, num_reg }) {
     }
   };
 
+  const loadedRef = useRef(false);
+
   useEffect(() => {
-    if (!open || !num_reg) return;
+    if (!open || !num_reg || loadedRef.current) return;
 
     const fetchArchivos = async () => {
       try {
         const { data } = await api.get(`cotizaciones/adjuntos/listar/${num_reg}/`);
         if (data.ok) {
-          // Mapea los archivos a tu formato de registros
           const existentes = data.archivos.map((a) => ({
-            id: Date.now() + Math.random(),  // id único temporal
-            dat: "-",                        // no tenemos fecha, puedes poner "-"
-            des: a.displayName,              // nombre que se muestra
+            id: a.nombre, // mejor que Date.now()
+            dat: "-",
+            des: a.displayName,
             cod: "Arch. existente",
-            file: null,                      // no es un File, solo para UI
-            saveName: a.nombre,              // nombre real en disco
+            file: null,
+            saveName: a.nombre,
           }));
-          setRegistros((prev) => [...existentes, ...prev]);
+
+          setRegistros(existentes);
+          loadedRef.current = true;
         }
       } catch (error) {
         console.error("Error cargando archivos existentes", error);
@@ -211,6 +214,13 @@ export default function AdjuntosModal({ open, onClose, num_reg }) {
 
     fetchArchivos();
   }, [open, num_reg]);
+
+  useEffect(() => {
+    if (!open) {
+      loadedRef.current = false;
+      setRegistros([]);
+    }
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -279,11 +289,11 @@ export default function AdjuntosModal({ open, onClose, num_reg }) {
 
           {/* SECCIÓN 2: LISTADO DE ARCHIVOS */}
           <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100">
                   <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-16">Icono</th>
-                  <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Documento</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest w-[60%]">Nombre del Documento</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-24">Acciones</th>
                 </tr>
               </thead>
@@ -305,8 +315,10 @@ export default function AdjuntosModal({ open, onClose, num_reg }) {
                             <img src={iconSrc} alt="ext" className="w-7 h-7 object-contain drop-shadow-sm" />
                           </button>
                         </td>
-                        <td className="px-4 py-2">
-                          <span className="text-xs font-bold text-slate-700 group-hover:text-slate-700 transition-colors">{r.des}</span>
+                        <td className="px-4 py-2 align-top">
+                          <span className="text-xs font-bold text-slate-700 break-words whitespace-normal leading-tight">
+                            {r.des}
+                          </span>
                         </td>
                         <td className="px-4 py-2 text-center">
                           <button

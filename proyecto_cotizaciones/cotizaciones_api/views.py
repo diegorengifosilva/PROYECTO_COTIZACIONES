@@ -1792,13 +1792,6 @@ def build_cotizacion_pdf_context(num_reg):
     # 1
     indice.append({
         "numero": contador,
-        "titulo": "Resumen de Propuesta y Condiciones"
-    })
-    contador += 1
-
-    # 2
-    indice.append({
-        "numero": contador,
         "titulo": "Presupuesto General"
     })
     contador += 1
@@ -1825,6 +1818,28 @@ def build_cotizacion_pdf_context(num_reg):
         "titulo": "Condiciones Generales y Garantías"
     })
 
+    # =========================
+    # NUMERACIÓN DE SECCIONES
+    # =========================
+    secciones = {
+        "presupuesto": 1,
+    }
+
+    contador = 2
+
+    # Suministros
+    for g in suministros:
+        g["seccion"] = contador
+        contador += 1
+
+    # Servicios
+    for s in servicios:
+        s["seccion"] = contador
+        contador += 1
+
+    # Condiciones
+    secciones["condiciones"] = contador
+
     return {
         "cabecera": cabecera,
         "suministros": suministros,
@@ -1842,6 +1857,7 @@ def build_cotizacion_pdf_context(num_reg):
             "condiciones": cotizacion.acu_e,
         },
         "indice": indice,
+        "secciones": secciones,
     }
 
 from pathlib import Path

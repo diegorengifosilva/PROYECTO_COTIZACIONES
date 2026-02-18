@@ -47,8 +47,8 @@ const Table = ({
   }, [data]);
 
   const cellPaddingClass = compact
-    ? "px-[4px] py-[2px]"
-    : "px-3 py-2";
+    ? "px-[6px] py-[1px] leading-none"
+    : "px-3 py-1.5";
   const cardPaddingClass = compact ? "p-2" : "p-3 md:p-4";
 
   return (

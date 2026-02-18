@@ -389,7 +389,7 @@ export default function AprobacionCotizacion() {
               "",
               ""
             ].map(h => (
-              <span className="text-sm font-[950] uppercase tracking-[0.2em] text-slate-800 text-center block">
+              <span className="text-sm font-[950] py-1.5 uppercase tracking-[0.2em] text-slate-800 text-center block">
                 {h}
               </span>
             ))}
@@ -404,26 +404,26 @@ export default function AprobacionCotizacion() {
 
             renderRow={(c) => [
               // 1. FECHA
-              <span className="text-xs font-semibold text-slate-800 tabular-nums text-left">
+              <span className="text-xs font-semibold text-slate-800 tabular-nums text-center leading-none">
                 {c.fecha}
               </span>,
 
               // 2. COTIZACIÓN
-              <span className="text-xs font-semibold text-slate-800 text-left tracking-tighter uppercase">
+              <span className="text-xs font-semibold text-slate-800 text-left tracking-tight uppercase leading-none">
                 {c.numero}
               </span>,
 
               // 3. REFERENCIA
               <span
-                className="text-xs text-slate-800 font-semibold text-left truncate max-w-[400px] block"
+                className="text-xs text-slate-800 font-semibold text-left truncate max-w-[400px] block leading-none"
                 title={c.referencia}
               >
                 {c.referencia || "—"}
               </span>,
 
               // 4. CLIENTE / REPRESENTANTE
-              <div className="flex flex-col py-3 max-w-[300px] text-left">
-                <span className="text-xs font-semibold text-slate-800 leading-none uppercase tracking-tight mb-1">
+              <div className="flex flex-col py-1 max-w-[300px] text-left leading-tight">
+                <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight">
                   {clientesMap[c.cliente_codigo] ?? "No Identificado"}
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -435,12 +435,12 @@ export default function AprobacionCotizacion() {
               </div>,
 
               // 5. ÁREA
-              <span className="text-xs font-semibold text-slate-800 uppercase tracking-tighter text-left bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+              <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight text-left bg-slate-50 px-2 py-[2px] rounded-md border border-slate-100">
                 {c.area_nombre}
               </span>,
 
               // 6. ESTADO
-              <span className="text-xs font-semibold uppercase tracking-widest text-left text-slate-800">
+              <span className="text-xs font-semibold uppercase tracking-wide text-left text-slate-800 leading-none">
                 {c.estado_nombre}
               </span>,
 
@@ -448,9 +448,6 @@ export default function AprobacionCotizacion() {
               <div className="text-left py-1">
                 <span className="text-xs font-bold text-slate-800 tabular-nums">
                   {c.tot_c}
-                </span>
-                <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.15em]">
-                  Valor Total
                 </span>
               </div>,
 
@@ -465,7 +462,7 @@ export default function AprobacionCotizacion() {
                       setCotizacionSeleccionada(c);
                       setDetalleOpen(true);
                     }}
-                    className="h-9 w-9 p-0 rounded-2xl bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 border border-transparent hover:border-teal-100 transition-all shadow-none hover:shadow-sm"
+                    className="h-7 w-7 p-0 rounded-2xl bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 border border-transparent hover:border-teal-100 transition-all shadow-none hover:shadow-sm"
                   >
                     <Eye className="w-4 h-4" />
                   </Button>

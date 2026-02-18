@@ -580,6 +580,37 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     });
   };
 
+  const recalcularTotales = (grupo) => {
+    if (!grupo?.items || !Array.isArray(grupo.items)) {
+      return {
+        ...grupo,
+        items: [],
+        subtotal: 0,
+      };
+    }
+
+    let subtotal = 0;
+
+    const itemsActualizados = grupo.items.map(item => {
+      const cantidad = Number(item?.cantidad || 0);
+      const precio = Number(item?.precio_unitario || 0);
+      const total = cantidad * precio;
+
+      subtotal += total;
+
+      return {
+        ...item,
+        total,
+      };
+    });
+
+    return {
+      ...grupo,
+      items: itemsActualizados,
+      subtotal,
+    };
+  };
+
   // 🔹 Construye los ítems desde el XLS usando la MISMA lógica que RegistroItemModal
   const buildGruposFromXLS = async (
     excelRows,
@@ -588,18 +619,36 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     tcamb = 1
   ) => {
     if (!grupoActivo) {
-      console.error("❌ buildGruposFromXLS: grupoActivo no definido");
+      console.error("❌ Grupo no definido");
       return gruposExistentes;
     }
 
-    console.log("💱 TCAMB recibido en buildGruposFromXLS:", tcamb);
-    console.log("📥 Iniciando importación XLS → Grupo:", grupoActivo);
-    console.table(excelRows);
+    // =====================
+    // 🔥 Validación Excel
+    // =====================
+    if (!Array.isArray(excelRows) || excelRows.length === 0) {
+      alert("El archivo Excel está vacío.");
+      return gruposExistentes;
+    }
 
-    const grupo = { ...(gruposExistentes[grupoActivo] || {}) };
-    grupo.items = [];
+    if (!excelRows.some(r => r.Codigo || r.codigo)) {
+      alert("El Excel no tiene columna Código.");
+      return gruposExistentes;
+    }
+
+    console.log("📥 Importación XLS →", grupoActivo);
+
+    const grupoOriginal = gruposExistentes[grupoActivo] || {};
+    const itemsExistentes = grupoOriginal.items || [];
+
+    const grupo = { ...grupoOriginal };
     grupo.tipo = grupo.tipo || "SUMINISTRO";
     grupo.titulo = grupo.titulo || grupoActivo;
+
+    // =====================
+    // 🔥 Cache para rendimiento
+    // =====================
+    const cacheCodigos = new Map();
 
     // =====================
     // 🔁 Fallback proveedor Excel → TPR
@@ -615,68 +664,49 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     };
 
     // =====================
-    // 1️⃣ Ítems base (Excel puro)
+    // 1️⃣ Base
     // =====================
-    const itemsBase = excelRows.map((row, idx) => {
-      const item = {
-        id: crypto.randomUUID(),
-        nig: 0,
-        cod: String(row.Codigo || row.codigo || "").trim(),
-        des: String(row.Descripcion || row.descripcion || "").trim(), // ❗ no inventar
-        can: Number(row.Cant || row.cant || 1),
-        proveedorExcel: String(row.Proveedor || row.proveedor || "").trim(),
-        tpr: "",
-        pro: "",
-        tde: "UNI",
-        vc_pu: 0,
-        vc_tot: 0,
-        tot: 0,
-        origen: "XLS",
-        pendienteResolver: true,
-      };
+    const itemsBase = excelRows.map(row => ({
+      id: crypto.randomUUID(),
+      cod: String(row.Codigo || row.codigo || "").trim(),
+      des: String(row.Descripcion || row.descripcion || "").trim(),
+      can: Number(row.Cant || row.cant || 1),
+      proveedorExcel: String(row.Proveedor || row.proveedor || "").trim(),
+      pendienteResolver: true,
+    }));
 
-      console.log(`🧾 [XLS ${idx + 1}] Item base`, item);
-      return item;
-    });
+    let nuevos = 0;
+    let actualizados = 0;
+    let noEncontrados = 0;
 
     // =====================
-    // 2️⃣ Resolver por CÓDIGO (fuente de verdad)
+    // 2️⃣ Resolver
     // =====================
     const processedItems = await Promise.all(
-      itemsBase.map(async (item, idx) => {
-        const row = idx + 1;
+      itemsBase.map(async item => {
+        const key = item.cod?.toUpperCase();
 
-        // ⛔ Sin código válido
-        if (!item.cod || ["S/C", "."].includes(item.cod.toUpperCase())) {
-          console.log(`⏭️ [${row}] Sin código → no se procesa`);
+        if (!key || ["S/C", "."].includes(key)) {
           return { ...item, pendienteResolver: false };
         }
 
+        // 🔥 Cache
+        if (cacheCodigos.has(key)) {
+          return cacheCodigos.get(key);
+        }
+
         try {
-          console.log(`🔎 [${row}] Resolviendo TPR por código`, item.cod);
-
           const tprPorCodigo = await resolverEndpointPorCodigo(item.cod);
-          let tprFinal = "";
 
-          if (tprPorCodigo && tprPorCodigo !== "99") {
-            tprFinal = tprPorCodigo;
-            console.log(`✅ [${row}] TPR detectado por código →`, tprFinal);
-          } else {
-            const tprExcel = mapProveedorExcelToTPR(item.proveedorExcel);
-            tprFinal = tprExcel || "";
-            console.warn(
-              `⚠️ [${row}] Código no encontrado, fallback Excel →`,
-              tprFinal || "editable"
-            );
-          }
+          let tprFinal = tprPorCodigo && tprPorCodigo !== "99"
+            ? tprPorCodigo
+            : mapProveedorExcelToTPR(item.proveedorExcel);
 
           if (!tprFinal) {
+            noEncontrados++;
             return { ...item, pendienteResolver: false };
           }
 
-          // =====================
-          // Buscar item en endpoint real
-          // =====================
           const endpointMap = {
             "01": "/cotizaciones/rockwell/",
             "03": "/cotizaciones/rittal/",
@@ -689,110 +719,132 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
           const endpoint = endpointMap[tprFinal];
           if (!endpoint) return item;
 
-          console.log(`🌐 [${row}] Buscando en`, endpoint);
-
           const res = await api.get(endpoint, { params: { search: item.cod } });
           const rows = Array.isArray(res.data) ? res.data : [];
 
           const encontrado = rows.find(r =>
-            String(r.codigo).toUpperCase() === item.cod.toUpperCase() ||
-            String(r.ocodigo).toUpperCase() === item.cod.toUpperCase()
+            String(r.codigo).toUpperCase() === key ||
+            String(r.ocodigo).toUpperCase() === key
           );
 
-          if (!encontrado) {
-            console.warn(`⚠️ [${row}] Código no encontrado en endpoint → usando datos de Excel`);
+          let calc;
 
-            // 🔹 Normalizamos directamente usando Excel
-            const calcFallback = calcularItemSegunProveedor(
+          if (!encontrado) {
+            noEncontrados++;
+
+            calc = calcularItemSegunProveedor(
               {
                 codigo: item.cod,
                 descripcion: item.des,
                 proveedor: item.proveedorExcel,
-                pgc: item.tde,
-                precio: 0 // como no hay precio en DB, dejamos 0
+                pgc: "UNI",
+                precio: 0,
               },
               tprFinal,
               tcamb,
               item.can,
               item.proveedorExcel
             );
-
-            return {
-              ...item,
-              tpr: calcFallback.tpr ?? tprFinal,
-              cod: calcFallback.codigo ?? item.cod,
-              des: calcFallback.descripcion ?? item.des,
-              pro: calcFallback.proveedor ?? item.proveedorExcel,
-              tde: calcFallback.unidad ?? "UNI",
-              can: calcFallback.cantidad ?? 1,
-              puc: calcFallback.costoPrecio ?? 0,
-              tou: calcFallback.utilidad ?? 0,
-              cau: calcFallback.porcentaje ?? 0,
-              toc: calcFallback.costoTotal ?? 0,
-              val: calcFallback.ventaPrecio ?? 0,
-              tot: calcFallback.ventaTotal ?? 0,
-              pendienteResolver: false,
-            };
+          } else {
+            calc = calcularItemSegunProveedor(
+              encontrado,
+              tprFinal,
+              tcamb,
+              item.can,
+              item.proveedorExcel
+            );
           }
 
-          console.log(`📦 [${row}] Item encontrado`, encontrado);
-
-          console.log(
-            `💱 [${row}] TCAMB antes de calcular`,
-            { tcamb, tpr: tprFinal, cantidad: item.can }
-          );
-
-          // =====================
-          // Cálculo ÚNICO (tablaUtils)
-          // =====================
-          const calc = calcularItemSegunProveedor(
-            encontrado,
-            tprFinal,
-            tcamb,
-            item.can,
-            item.proveedorExcel
-          );
-
-          console.log(`🧮 [${row}] Normalizado`, calc);
-
-          return {
+          const normalizado = {
             ...item,
-
-            // Identidad
-            tpr: calc.tpr ?? tprFinal, 
+            tpr: calc.tpr ?? tprFinal,
             cod: calc.codigo ?? item.cod,
             des: calc.descripcion ?? item.des,
-            pro: item.proveedorExcel ?? calc.proveedor ?? "",
+            pro: item.proveedorExcel,
             tde: calc.unidad ?? "UNI",
             can: calc.cantidad ?? 1,
-
-            // 💰 Campos que el RegistroItemModal SÍ LEE
             puc: calc.costoPrecio ?? 0,
             tou: calc.utilidad ?? 0,
             cau: calc.porcentaje ?? 0,
             toc: calc.costoTotal ?? 0,
             val: calc.ventaPrecio ?? 0,
             tot: calc.ventaTotal ?? 0,
-
             pendienteResolver: false,
           };
 
+          cacheCodigos.set(key, normalizado);
+          nuevos++;
+
+          return normalizado;
+
         } catch (err) {
-          console.error(`💥 [${row}] Error procesando`, item.cod, err);
+          console.error("Error XLS", item.cod, err);
           return item;
         }
       })
     );
 
     // =====================
-    // 3️⃣ Asignar NIG
+    // 🔥 Anti-duplicados + actualización automática
     // =====================
-    grupo.items = processedItems.map((item, idx) => ({
-      ...item,
-      nig: idx + 1,
-    }));
+    const mapaItems = new Map();
 
-    console.log("✅ Grupo final generado:", grupo);
+    itemsExistentes.forEach(item => {
+      mapaItems.set(item.cod?.toUpperCase(), item);
+    });
+
+    processedItems.forEach(item => {
+      const key = item.cod?.toUpperCase();
+
+      if (!key) {
+        mapaItems.set(crypto.randomUUID(), item);
+        return;
+      }
+
+      if (mapaItems.has(key)) {
+        const existente = mapaItems.get(key);
+
+        actualizados++;
+
+        mapaItems.set(key, {
+          ...existente,
+          can: Number(existente.can || 0) + Number(item.can || 0),
+        });
+
+      } else {
+        mapaItems.set(key, item);
+      }
+    });
+
+    const todosLosItems = Array.from(mapaItems.values());
+
+    // =====================
+    // 🔥 Recalculo automático
+    // =====================
+    grupo.items = todosLosItems.map((item, idx) => {
+      const recalculado = recalcularTotales
+        ? recalcularTotales(item)
+        : item;
+
+      return {
+        ...recalculado,
+        nig: idx + 1,
+      };
+    });
+
+    // =====================
+    // 🔥 Logs UX
+    // =====================
+    console.log("✔ Nuevos:", nuevos);
+    console.log("🔁 Actualizados:", actualizados);
+    console.log("⚠ No encontrados:", noEncontrados);
+
+    alert(
+      `Importación completada:
+      ✔ ${nuevos} nuevos
+      🔁 ${actualizados} actualizados
+      ⚠ ${noEncontrados} sin coincidencia`
+    );
 
     return {
       ...gruposExistentes,
@@ -908,90 +960,57 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     }
   };
 
-  const guardarCondiciones = async (nuevoTexto) => {
-    try {
-      await api.post(
-        `cotizaciones/${numero}/condiciones-generales/`,
-        { condiciones_generales: nuevoTexto }
-      );
-
-      setData((prev) => ({ ...prev, acu_e: nuevoTexto }));
-      alert("Condiciones generales actualizadas.");
-      setOpenCondiciones(false);
-
-    } catch (error) {
-      console.error(error);
-      alert("Error guardando condiciones.");
-    }
-  };
-
-  const cargarCodigo = async () => {
-    try {
-      const { data } = await api.get(
-        `cotizaciones/${numero}/generar-codigo/`
-      );
-
-      setCodigo(data.codigo);
-
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo cargar el código.");
-    }
-  };
-
   // IDs
   const buildSubgrupoId = (servicioId, index) =>
     `SG_BACK_${servicioId}_${index}`;
 
   // Agregar o Editar Servicio
   const handleAgregarServicio = (form) => {
-    console.log("🟡 FORM RECIBIDO:", form, {
-      cantidad: form.cantidad,
-      tipo: typeof form.cantidad,
-    });
-
     setGruposServicios(prev => {
+      let nuevoState;
 
-      // ✏️ EDITAR SERVICIO EXISTENTE
       if (form._key && prev[form._key]) {
         const servicioPrev = prev[form._key];
 
-        return {
+        nuevoState = {
           ...prev,
           [form._key]: {
             ...servicioPrev,
-            tituloGeneral: form.nombre, // 🔹 igual que grupo.titulo
+            tituloGeneral: form.nombre,
             cantidad: Number(form.cantidad),
             lineasPdf: Number(form.lineasPdf),
             detalle: form.detalle,
             header: {
               ...servicioPrev.header,
-              can: Number(form.cantidad), // si quieres reflejarlo en header
+              can: Number(form.cantidad),
+            },
+          },
+        };
+      } else {
+        const id = form.cog ?? `S${Date.now()}`;
+
+        nuevoState = {
+          ...prev,
+          [id]: {
+            id,
+            tituloGeneral: form.nombre,
+            cantidad: Number(form.cantidad),
+            lineasPdf: Number(form.lineasPdf),
+            detalle: form.detalle,
+            subgrupos: [],
+            header: {
+              can: Number(form.cantidad),
+              tot: 0,
             },
           },
         };
       }
 
-      // ➕ CREAR NUEVO SERVICIO
-      const id = form.cog ?? `S${Date.now()}`;
-      return {
-        ...prev,
-        [id]: {
-          id,
-          tituloGeneral: form.nombre,
-          cantidad: Number(form.cantidad),
-          lineasPdf: Number(form.lineasPdf),
-          detalle: form.detalle,
-          subgrupos: [],
-          header: {
-            can: Number(form.cantidad),
-            tot: 0,
-          },
-        },
-      };
-      console.log("🟢 SERVICIO GUARDADO:", {
-        cantidad: Number(form.cantidad),
-      });
+      // 🔥 GUARDAR EN BACKEND
+      const payload = mapServiciosStateToPayload(nuevoState);
+      serviciosMutation.mutate(payload);
+
+      return nuevoState;
     });
   };
 
@@ -1207,6 +1226,28 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       };
     });
   };
+
+  const serviciosMutation = useMutation({
+    mutationFn: (payload) =>
+      api.post(`cotizacion/${numReg}/servicios/`, payload),
+
+    onSuccess: (data, payload) => {
+      // 🔥 sincroniza cache
+      queryClient.setQueryData(
+        ["servicios", numReg],
+        data
+      );
+
+      // 🔥 opcional: mantener coherencia global
+      setServicios(data);
+
+      toast.success("Servicios guardados correctamente");
+
+      queryClient.invalidateQueries({
+        queryKey: ["cotizacion-detalle", numReg],
+      });
+    },
+  });
 
   // =========
   // GESTION

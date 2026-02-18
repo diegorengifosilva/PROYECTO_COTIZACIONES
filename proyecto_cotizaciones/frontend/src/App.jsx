@@ -15,6 +15,7 @@ import RegisterPage from "@/auth/register/RegisterPage.jsx";
 
 // LAYOUT PRINCIPAL
 import DashboardLayout from "@/dashboard/layout/DashboardLayout.jsx";
+import GlobalNavbar from "@/dashboard/layout/GlobalNavbar.jsx";
 
 // DASHBOARDS DE PRUEBA PARA COTIZACIONES
 import Cotizaciones from "./dashboard/cotizaciones/Cotizaciones";

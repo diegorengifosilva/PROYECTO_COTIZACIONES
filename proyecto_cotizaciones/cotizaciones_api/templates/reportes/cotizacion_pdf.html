@@ -783,7 +783,7 @@
         <img src="{{ header_path }}" class="header-img">
     </div>
     <div class="content-padding">
-        <p class="subtit">1.- PRESUPUESTO GENERAL</p>
+        <p class="subtit">{{ secciones.presupuesto }}.- PRESUPUESTO GENERAL</p>
         <table class="tabla-moderna">
             <thead>
                 <tr>
@@ -843,7 +843,7 @@
         {% if suministros %}
             {% for grupo in suministros %}
             <div style="margin-top: 30px; page-break-inside: avoid;">    
-                <p class="subtit">{{ forloop.counter|add:1 }}.- DETALLE: {{ grupo.titulo }}</p>
+                <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
                 <table class="tabla-moderna">
                     <thead>
                         <tr>
@@ -882,7 +882,7 @@
             {% with start_idx=suministros|length|add:1 %}
                 {% for grupo in servicios %}
                 <div style="margin-top: 30px; page-break-inside: avoid;">
-                    <p class="subtit">{{ forloop.counter|add:start_idx }}.- DETALLE: {{ grupo.titulo }}</p>
+                    <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
                     <table class="tabla-moderna">
                         <thead>
                             <tr>
@@ -911,7 +911,7 @@
         {% if condiciones_generales.condiciones %}
             <div style="page-break-inside: avoid; margin-top: 40px; padding: 20px; background: #fcfcfc; border-radius: 8px; border: 1px solid var(--border);">
                 {% with total_secciones=suministros|length|add:servicios|length|add:1 %}
-                <p class="subtit" style="margin-top: 0;">{{ total_secciones|add:1 }}.- CONDICIONES GENERALES</p>
+                <p class="subtit">{{ secciones.condiciones }}.- CONDICIONES GENERALES</p>
                 {% endwith %}
                 
                 <div style="text-align: justify; font-size: 10px; color: var(--text-gray); line-height: 1.4;">

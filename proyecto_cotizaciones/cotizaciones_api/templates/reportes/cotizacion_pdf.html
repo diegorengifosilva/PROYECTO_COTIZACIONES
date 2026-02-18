@@ -526,6 +526,34 @@
             font-style: italic;
         }
 
+.separador{
+    margin-top: 420px; /* ajusta el espacio */
+}
+
+
+
+/* Mantener subtotal junto */
+.tabla-moderna tfoot{
+    display: table-footer-group;
+}
+
+/* Header invisible */
+.header-espacio{
+    position: fixed;
+    top: -90px;
+    left: 0;
+    right: 0;
+    height: 90px;   /* MISMA ALTURA que el margin-top */
+}
+
+
+/* Contenido */
+.contenido-pdf{
+    width:100%;
+}
+
+
+
     </style>
 </head>
 <body>
@@ -536,6 +564,8 @@
         <img src="{{ header_path }}" class="header-img">
     </div>
     <div class="cover-content">
+<br>
+<br>
         <div class="tagline">Propuesta Económica</div>
         <h1 class="main-title">{{ cabecera.referencia|upper }}</h1>
         
@@ -560,6 +590,7 @@
             <p style="margin:0; font-size: 11px; color: var(--text-gray);">Optimización y Automatización de Procesos</p>
         </div>
     </div>
+<div class="separador"></div>
 
     <div class="footer-wrapper">
         <img src="{{ footer_bg_path }}" class="footer-bg">
@@ -839,13 +870,17 @@
                 </tr>
             </tfoot>
         </table>
+<div class="header-espacio"></div>
 
         {% if suministros %}
             {% for grupo in suministros %}
-            <div style="margin-top: 30px; page-break-inside: avoid;">    
+<div class="grupo-detalle">
+           
                 <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
+                <br>
                 <table class="tabla-moderna">
                     <thead>
+                     
                         <tr>
                             <th style="width:5%" class="text-center">Ítem</th>
                             <th style="width:50%" class="text-center">Descripción Técnica</th>
@@ -875,9 +910,10 @@
                     </tfoot>
                 </table>
             </div>
+            <br>
             {% endfor %}
         {% endif %}
-
+<br>
         {% if servicios %}
             {% with start_idx=suministros|length|add:1 %}
                 {% for grupo in servicios %}

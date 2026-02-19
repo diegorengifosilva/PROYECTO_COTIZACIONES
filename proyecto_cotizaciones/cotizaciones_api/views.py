@@ -2922,12 +2922,20 @@ def reporte_servicios_html(request, num_reg):
 
         # Subgrupo (nig=1)
         elif row.nig == 1:
-            tipo_code = cog_key[-2:]
-            tipo = {
+            # 🔥 Obtener tipo desde los dígitos centrales del COG (**04*, **05*, **06*)
+            try:
+                cog_str = str(row.cog).zfill(5)
+                tipo_code = cog_str[2:4]  # ej: 01041 → "04"
+            except:
+                tipo_code = ""
+
+            tipo_map = {
                 "04": "MANO DE OBRA",
                 "05": "GASTOS DE SERVICIOS",
-                "06": "OTROS"
-            }.get(tipo_code, "OTROS")
+                "06": "OTROS",
+            }
+
+            tipo = tipo_map.get(tipo_code, "OTROS")
 
             ultimo_grupo_key = list(grupos.keys())[-1]
             grupos[ultimo_grupo_key]["subgrupos"][cog_key] = {
@@ -2939,6 +2947,7 @@ def reporte_servicios_html(request, num_reg):
                 "sub_total_toc": Decimal("0.00"),
                 "sub_total_utilidad": Decimal("0.00"),
             }
+
 
         # Items (nig=2)
         elif row.nig == 2:

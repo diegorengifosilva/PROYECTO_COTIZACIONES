@@ -68,38 +68,61 @@ function RegistroItemOtrosModal({ open, onClose, onConfirm, codigoTipoGasto, ite
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+
+    setForm(prev => {
+      const actualizado = { ...prev, [name]: value };
+      return calcularValores(actualizado, name);
+    });
   };
-
-  // ==========================
-  // CÁLCULOS AUTOMÁTICOS
-  // ==========================
-  useEffect(() => {
-    const cantidad = Number(form.cantidad) || 0;
-    const precio = Number(form.precio) || 0.00;
-    const utilidad = Number(form.utilidad) || 0.00;
-
-    const porcentaje = precio > 0 ? ((utilidad / precio) * 100).toFixed(2) : 0.00;
-    const total = (precio * cantidad).toFixed(2);
-    const ventaPrecio = (precio + utilidad).toFixed(2);
-    const ventaTotal = (ventaPrecio * cantidad).toFixed(2);
-    const utilidadTotal = (utilidad * cantidad).toFixed(2);
-
-    setForm(prev => ({
-      ...prev,
-      porcentaje,
-      total,
-      ventaPrecio,
-      ventaTotal,
-      utilidadTotal,
-    }));
-  }, [form.cantidad, form.precio, form.utilidad]);
 
   const handleSubmit = () => {
     if (!form.concepto.trim()) return;
     onConfirm(form);
     onClose();
   };
+
+  const calcularValores = (data, campoModificado = null) => {
+    const next = { ...data };
+
+    const cantidad = toNumber(next.cantidad);
+    const precio = toNumber(next.precio);
+    let utilidad = toNumber(next.utilidad);
+    let porcentaje = toNumber(next.porcentaje);
+
+    // 🔹 Si editan porcentaje → recalcula utilidad
+    if (campoModificado === "porcentaje" && precio > 0) {
+      utilidad = (porcentaje * precio) / 100;
+      next.utilidad = utilidad.toFixed(2);
+    }
+
+    // 🔹 Si editan utilidad → recalcula porcentaje
+    if (campoModificado === "utilidad" && precio > 0) {
+      porcentaje = (utilidad / precio) * 100;
+      next.porcentaje = porcentaje.toFixed(2);
+    }
+
+    // 🔹 Si cambian precio → recalcula porcentaje
+    if (campoModificado === "precio" && precio > 0) {
+      porcentaje = utilidad > 0
+        ? (utilidad / precio) * 100
+        : porcentaje;
+
+      next.porcentaje = porcentaje.toFixed(2);
+    }
+
+    const total = precio * cantidad;
+    const ventaPrecio = precio + utilidad;
+    const ventaTotal = ventaPrecio * cantidad;
+    const utilidadTotal = utilidad * cantidad;
+
+    next.total = total.toFixed(2);
+    next.ventaPrecio = ventaPrecio.toFixed(2);
+    next.ventaTotal = ventaTotal.toFixed(2);
+    next.utilidadTotal = utilidadTotal.toFixed(2);
+
+    return next;
+  };
+
 
   if (!open) return null;
 
@@ -173,7 +196,7 @@ function RegistroItemOtrosModal({ open, onClose, onConfirm, codigoTipoGasto, ite
               <InputField inline size="sm" type="number" label="Cantidad:" name="cantidad" value={form.cantidad} onChange={handleChange} />
               <InputField inline size="sm" label="Precio Unitario:" name="precio" value={form.precio} onChange={handleChange} />
               <InputField inline size="sm" label="Utilidad:" name="utilidad" value={form.utilidad} onChange={handleChange} />
-              <InputField inline size="sm" label="Porcentaje:" name="porcentaje" value={form.porcentaje} readOnly className="bg-transparent border-none font-bold" />
+              <InputField inline size="sm" label="Porcentaje:" name="porcentaje" value={form.porcentaje} onChange={handleChange} />
             </div>
 
             {/* TOTALES DE VENTA */}
@@ -215,12 +238,17 @@ function RegistroItemOtrosModal({ open, onClose, onConfirm, codigoTipoGasto, ite
           open={codigoTipoGastoOpen}
           onClose={() => setCodigoTipoGastoOpen(false)}
           onSelect={(registro) =>
-            setForm(prev => ({ 
-              ...prev, 
-              codigoTipoGasto: registro.codigo,
-              concepto: registro.nombre,
-            }))
+            setForm(prev => {
+              const actualizado = {
+                ...prev,
+                codigoTipoGasto: registro.codigo,
+                concepto: registro.nombre,
+                porcentaje: 20,
+              };
+              return calcularValores(actualizado, "porcentaje");
+            })
           }
+
         />
       </DialogContent>
     </Dialog>

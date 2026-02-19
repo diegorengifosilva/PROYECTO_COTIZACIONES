@@ -1,100 +1,172 @@
-import React from 'react';
-import { 
-  LayoutGrid, 
-  Search, 
-  Plus, 
-  Bell, 
-  HelpCircle, 
-  Settings, 
-  PanelLeftOpen 
-} from 'lucide-react';
-import logo from "@/assets/logo.png"; // Importamos tu logo real
+import React, { useState } from "react";
+import {
+  Search,
+  Plus,
+  Bell,
+  HelpCircle,
+  Settings,
+  PanelLeftOpen,
+  ChevronDown,
+  LogOut,
+  User
+} from "lucide-react";
+import logo from "@/assets/logo.png";
 
 export default function GlobalNavbar({ sidebarOpen, setSidebarOpen, user }) {
+  const [openUser, setOpenUser] = useState(false);
+
   return (
-    <header className="h-12 border-b border-slate-200 flex items-center justify-between px-3 bg-white z-[100] shrink-0">
-      
-      {/* SECCIÓN IZQUIERDA: Marca Dinámica */}
-      <div className="flex items-center gap-2">
+    <header className="h-11 flex items-center justify-between px-3 bg-white border-b border-slate-100 z-[100] shrink-0">
+
+      {/* IZQUIERDA */}
+      <div className="flex items-center gap-1">
         {!sidebarOpen && (
-          <div className="flex items-center animate-in fade-in slide-in-from-left-2 duration-300">
-            {/* Botón para abrir sidebar */}
-            <button 
+          <div className="flex items-center">
+
+            <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 hover:bg-slate-100 rounded text-slate-600 transition-all mr-2"
-              title="Mostrar barra lateral"
+              className="p-1.5 hover:bg-slate-100 rounded-md text-slate-500 transition"
             >
-              <PanelLeftOpen size={20} />
+              <PanelLeftOpen size={17} />
             </button>
 
-            {/* Tu Logo Real y Nombre (Solo cuando el sidebar está oculto) */}
-            <div className="flex items-center gap-2 px-2 h-7 border-l border-slate-200">
-              <img 
-                src={logo} 
-                alt="V&C Logo" 
-                className="h-9 w-14 object-contain" 
+            <div className="flex items-center gap-2 px-2 border-l border-slate-200 ml-2">
+              <img
+                src={logo}
+                alt="V&C"
+                className="h-7 w-auto object-contain"
               />
             </div>
           </div>
         )}
-
-        {/* App Switcher (Puntitos) - Estilo sutil */}
-        {sidebarOpen && (
-          <button className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-[#0052CC] transition-colors">
-            <LayoutGrid size={20} strokeWidth={1.5} />
-          </button>
-        )}
       </div>
 
-      {/* SECCIÓN CENTRAL: Buscador Minimalista */}
-      <div className="flex-1 flex items-center justify-center px-4 md:px-8 gap-4">
-        <div className="relative w-full max-w-[500px] group">
-          <Search 
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#0052CC] transition-colors" 
-            size={15} 
+
+      {/* CENTRO */}
+      <div className="flex-1 flex items-center justify-center px-4 gap-3">
+
+        {/* BUSCADOR */}
+        <div className="relative w-full max-w-[460px] group">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-600"
           />
-          <input 
-            type="text" 
-            placeholder="Buscar en el sistema..."
-            className="w-full pl-10 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-sm focus:bg-white focus:border-[#0052CC] focus:ring-2 focus:ring-[#0052CC]/10 outline-none transition-all placeholder:text-slate-400"
+
+          <input
+            type="text"
+            placeholder="Buscar..."
+            className="
+              w-full pl-9 pr-3 py-1.5
+              bg-slate-50
+              border border-slate-200
+              rounded-md
+              text-xs
+              transition-all
+              focus:bg-white
+              focus:border-cyan-600
+              focus:ring-1 focus:ring-cyan-500/20
+              outline-none
+            "
           />
         </div>
 
-        {/* Botón Crear con Identidad V&C */}
-        <button className="hidden sm:flex px-4 py-1.5 bg-[#0052CC] text-white rounded-md font-semibold text-sm hover:bg-[#0747A6] shadow-sm hover:shadow-md items-center gap-2 transition-all shrink-0 active:scale-95">
-          <Plus size={16} strokeWidth={3} />
-          <span>Nuevo</span>
+
+        {/* NUEVO */}
+        <button className="
+          hidden sm:flex
+          items-center gap-1
+          px-3 py-1.5
+          bg-cyan-600
+          text-white
+          text-xs font-medium
+          rounded-md
+          hover:bg-cyan-700
+          transition
+          active:scale-95
+        ">
+          <Plus size={14} />
+          Nuevo
         </button>
       </div>
 
-      {/* SECCIÓN DERECHA: Herramientas y Usuario */}
+
+      {/* DERECHA */}
       <div className="flex items-center gap-1">
+
+        {/* ICONOS */}
         <div className="hidden md:flex items-center gap-1 border-r border-slate-200 pr-2 mr-2">
-          <button className="p-2 text-slate-500 hover:bg-slate-100 hover:text-[#0052CC] rounded-full transition-colors" title="Notificaciones">
-            <Bell size={18} />
+
+          {/* NOTIFICACIONES ERP */}
+          <button className="relative p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition">
+            <Bell size={16} />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-500 rounded-full" />
           </button>
-          <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" title="Ayuda">
-            <HelpCircle size={18} />
+
+          <button className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition">
+            <HelpCircle size={16} />
           </button>
-          <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" title="Configuración">
-            <Settings size={18} />
+
+          <button className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition">
+            <Settings size={16} />
           </button>
         </div>
-        
-        {/* Avatar Personalizado con iniciales inteligentes */}
-        <div 
-        className="w-8 h-8 bg-gradient-to-br from-cyan-600 to-blue-700 rounded-full flex items-center justify-center text-[12px] font-bold text-white cursor-pointer ring-2 ring-white shadow-sm hover:ring-[#0052CC]/30 transition-all"
-        title={user?.nomb_cort_usu}
-        >
-        {user?.usuario_usu 
-            ? user.usuario_usu
-                .split(/[.\s]/) // Divide por puntos (diego.rengifo) o espacios (Diego Rengifo)
-                .map(word => word[0]) // Toma la primera letra de cada palabra
-                .join('') // Las une
-                .substring(0, 2) // Se asegura de que no sean más de 2 letras
-                .toUpperCase() 
-            : "VC" // Default si no hay usuario
-        }
+
+
+        {/* USUARIO */}
+        <div className="relative">
+          <button
+            onClick={() => setOpenUser(!openUser)}
+            className="flex items-center gap-1"
+          >
+            <div className="
+              w-7 h-7
+              bg-gradient-to-br from-cyan-600 to-teal-700
+              rounded-full
+              flex items-center justify-center
+              text-[10px] font-bold text-white
+              shadow-sm
+            ">
+              {user?.usuario_usu
+                ? user.usuario_usu
+                    .split(/[.\s]/)
+                    .map(w => w[0])
+                    .join("")
+                    .substring(0, 2)
+                    .toUpperCase()
+                : "VC"}
+            </div>
+
+            <ChevronDown size={14} className="text-slate-400" />
+          </button>
+
+
+          {/* DROPDOWN ERP */}
+          {openUser && (
+            <div className="
+              absolute right-0 mt-2 w-44
+              bg-white border border-slate-200
+              rounded-lg shadow-lg
+              py-1 text-xs
+              animate-in fade-in zoom-in-95
+            ">
+              <button className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50">
+                <User size={14} />
+                Mi perfil
+              </button>
+
+              <button className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50">
+                <Settings size={14} />
+                Configuración
+              </button>
+
+              <div className="border-t my-1" />
+
+              <button className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50">
+                <LogOut size={14} />
+                Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -23,10 +23,10 @@ const SIDEBAR_ITEMS = [
     section: "Cotizaciones",
     items: [
       { to: "/dashboard/cotizaciones-home", label: "Cotizaciones Home", icon: FileText },
-      { to: "/dashboard/cotizaciones", label: "Cotizaciones", icon: FileText },
-      { to: "/dashboard/revision-cotizacion", label: "Revisión Cotización", icon: FileText },
+      //{ to: "/dashboard/cotizaciones", label: "Cotizaciones", icon: FileText },
+      //{ to: "/dashboard/revision-cotizacion", label: "Revisión Cotización", icon: FileText },
       { to: "/dashboard/aprobacion-cotizacion", label: "Aprobación Cotización", icon: FileText },
-      { to: "/dashboard/seguimiento-cotizaciones", label: "Seguimiento Cotizaciones", icon: BarChart2 },
+      //{ to: "/dashboard/seguimiento-cotizaciones", label: "Seguimiento Cotizaciones", icon: BarChart2 },
     ],
   },
 ];

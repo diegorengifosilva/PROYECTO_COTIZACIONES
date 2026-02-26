@@ -26,6 +26,8 @@ from .models import (
     CotiServicios,
     CotiMensajes,
     CotiSeguimiento,
+    ObjetivoAnual,
+    ObjetivoAnualArea,  
 )
 from django.contrib.auth import get_user_model
 from django.utils.timezone import localtime
@@ -467,3 +469,49 @@ class ContCiasSerializer(serializers.ModelSerializer):
     class Meta:
         model = cont_cias
         fields = "__all__"
+
+class ObjetivoAnualAreaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ObjetivoAnualArea
+        fields = ["area", "minimo", "maximo"]
+
+class ObjetivoAnualSerializer(serializers.ModelSerializer):
+    areas = ObjetivoAnualAreaSerializer(many=True)
+
+    class Meta:
+        model = ObjetivoAnual
+        fields = ["id", "anno", "activo", "areas"]
+
+    def create(self, validated_data):
+        areas_data = validated_data.pop("areas")
+
+        objetivo = ObjetivoAnual.objects.create(**validated_data)
+
+        for area in areas_data:
+            ObjetivoAnualArea.objects.create(
+                objetivo=objetivo,
+                **area
+            )
+
+        return objetivo
+
+    def update(self, instance, validated_data):
+        areas_data = validated_data.pop("areas", None)
+
+        instance.anno = validated_data.get("anno", instance.anno)
+        instance.activo = validated_data.get("activo", instance.activo)
+        instance.save()
+
+        if areas_data:
+            for area in areas_data:
+                ObjetivoAnualArea.objects.update_or_create(
+                    objetivo=instance,
+                    area=area["area"],
+                    defaults={
+                        "minimo": area["minimo"],
+                        "maximo": area["maximo"]
+                    }
+                )
+
+        return instance
+    

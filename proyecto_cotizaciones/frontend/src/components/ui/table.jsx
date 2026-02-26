@@ -112,9 +112,10 @@ const Table = ({
                           {typeof cell === "string" || typeof cell === "number" ? (
                             <Tippy content={cell}>
                               <span
-                                className="block truncate cursor-text select-text"
-                                onClick={(e) => e.stopPropagation()}
-                                onDoubleClick={(e) => e.stopPropagation()}
+                                className="block truncate cursor-text select-text w-full h-full"
+                                // ELIMINADO: onClick={(e) => e.stopPropagation()} 
+                                // Para que el click pase al TR
+                                onDoubleClick={(e) => e.stopPropagation()} 
                                 style={{
                                   display: "-webkit-box",
                                   WebkitLineClamp: 2,
@@ -126,9 +127,8 @@ const Table = ({
                             </Tippy>
                           ) : (
                             <div
-                              onClick={(e) => e.stopPropagation()}
-                              onDoubleClick={(e) => e.stopPropagation()}
-                              className="w-full h-full"
+                              // ELIMINADO: onClick={(e) => e.stopPropagation()}
+                              className="w-full h-full flex items-center justify-center"
                             >
                               {cell}
                             </div>

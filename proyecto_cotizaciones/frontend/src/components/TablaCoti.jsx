@@ -35,54 +35,49 @@ export default function TablaCoti({
             />
           </div>
 
-          {/* FILTRO ESTILO JIRA (POPOVER) */}
-        {/* FILTRO ESTILO JIRA (USANDO TU COMPONENTE PERSONALIZADO) */}
-        <div className="flex items-center gap-2">
-        <JiraPopover
-            isOpen={showFilters}
-            setIsOpen={setShowFilters}
-            trigger={
-            <Button 
-                variant={showFilters ? "secondary" : "ghost"} 
-                size="sm" 
-                className={`font-semibold flex gap-2 h-9 transition-all duration-200 border ${
-                showFilters 
-                    ? 'bg-slate-200 border-slate-300 text-slate-900 shadow-inner' 
-                    : 'text-slate-600 border-transparent hover:bg-slate-100'
-                }`}
-            >
-                <ListFilter className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-teal-600 fill-teal-600' : ''}`} />
-                Filtro
-                {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-teal-600 text-white rounded-full leading-none shadow-sm font-bold">
-                    {activeFiltersCount}
-                </span>
-                )}
-                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
-            </Button>
-            }
-        >
-            {/* Todo lo que pongas aquí adentro se renderizará automáticamente 
-            dentro del espacio blanco de tu JiraPopover (donde pusiste {children})
-            */}
-            <div className="w-full">
-            {filterComponent}
-            </div>
-        </JiraPopover>
+          {/* FILTRO (USANDO TU COMPONENTE PERSONALIZADO) */}
+          <div className="flex items-center gap-2">
+          <JiraPopover
+              isOpen={showFilters}
+              setIsOpen={setShowFilters}
+              trigger={
+              <Button 
+                  variant={showFilters ? "secondary" : "ghost"} 
+                  size="sm" 
+                  className={`font-semibold flex gap-2 h-9 transition-all duration-200 border ${
+                  showFilters 
+                      ? 'bg-slate-200 border-slate-300 text-slate-900 shadow-inner' 
+                      : 'text-slate-600 border-transparent hover:bg-slate-100'
+                  }`}
+              >
+                  <ListFilter className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-teal-600 fill-teal-600' : ''}`} />
+                  Filtro
+                  {activeFiltersCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-teal-600 text-white rounded-full leading-none shadow-sm font-bold">
+                      {activeFiltersCount}
+                  </span>
+                  )}
+              </Button>
+              }
+          >
+              <div className="w-full">
+              {filterComponent}
+              </div>
+          </JiraPopover>
 
-        {/* BOTÓN LIMPIAR FUERA (Mantenemos tu lógica original) */}
-        {activeFiltersCount > 0 && (
-            <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onClearFilters}
-            className="h-9 px-2 text-slate-400 hover:text-rose-500 transition-colors"
-            title="Limpiar filtros"
-            >
-            <X className="w-4 h-4" />
-            </Button>
-        )}
-        </div>
+          {/* BOTÓN LIMPIAR FUERA */}
+          {activeFiltersCount > 0 && (
+              <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClearFilters}
+              className="h-9 px-2 text-slate-400 hover:text-rose-500 transition-colors"
+              title="Limpiar filtros"
+              >
+              <X className="w-4 h-4" />
+              </Button>
+          )}
+          </div>
         </div>
 
         {/* ICONOS DERECHA */}
@@ -140,29 +135,28 @@ export default function TablaCoti({
 
           renderRow={(c) => [
             /* FECHA */
-            <span className="text-xs font-semibold text-slate-800 tabular-nums text-center leading-none">
+            <span className="text-xs font-semibold text-slate-800 tabular-nums text-center leading-none block w-full">
               {c.fecha}
             </span>,
 
             /* NUMERO */
-            <span className="text-xs font-semibold text-slate-800 text-left tracking-tight uppercase leading-none">
+            <span className="text-xs font-semibold text-slate-800 text-left tracking-tight uppercase leading-none block w-full">
               {c.numero}
             </span>,
 
             /* REFERENCIA */
             <span
-              className="text-xs text-slate-800 font-semibold text-left truncate max-w-[400px] block leading-none"
+              className="text-xs text-slate-800 font-semibold text-left truncate max-w-[400px] block leading-none w-full"
               title={c.referencia}
             >
               {c.referencia || "—"}
             </span>,
 
             /* CLIENTE */
-            <div className="flex flex-col py-1 max-w-[300px] text-left leading-tight">
+            <div className="flex flex-col py-1 max-w-[300px] text-left leading-tight w-full">
               <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight">
                 {clientesMap[c.cliente_codigo] ?? "No Identificado"}
               </span>
-
               <div className="flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-teal-400" />
                 <span className="text-[9px] font-bold text-teal-600/80 uppercase tracking-wide">
@@ -172,32 +166,32 @@ export default function TablaCoti({
             </div>,
 
             /* AREA */
-            <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight text-left bg-slate-50 px-2 py-[2px] rounded-md border border-slate-100">
-              {c.area_nombre}
-            </span>,
+            <div className="flex w-full">
+              <span className="text-xs font-semibold text-slate-800 uppercase tracking-tight text-left bg-slate-50 px-2 py-[2px] rounded-md border border-slate-100">
+                {c.area_nombre}
+              </span>
+            </div>,
 
             /* ESTADO */
-            <span className="text-xs font-semibold uppercase tracking-wide text-left text-slate-800 leading-none">
+            <span className="text-xs font-semibold uppercase tracking-wide text-left text-slate-800 leading-none block w-full">
               {c.estado_nombre}
             </span>,
 
             /* IMPORTE */
-            <div className="text-left py-1">
+            <div className="text-left py-1 w-full">
               <span className="text-xs font-bold text-slate-800 tabular-nums">
                 {c.tot_c}
               </span>
             </div>,
 
-            /* BOTON */
+            /* BOTON (Solo Visual o disparador redundante) */
             <div className="flex justify-start">
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRowClick?.(c);
-                  }}
+                  // Quitamos el e.stopPropagation() para que el clic "atraviese" hacia la fila
+                  // O simplemente lo dejamos sin onClick si la fila ya lo maneja
                   className="h-7 w-7 p-0 rounded-2xl bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 border border-transparent hover:border-teal-100 transition-all shadow-none hover:shadow-sm"
                 >
                   <Eye className="w-4 h-4" />
@@ -206,7 +200,7 @@ export default function TablaCoti({
             </div>,
 
             /* ENVIO */
-            <div className="flex items-center justify-start">
+            <div className="flex items-center justify-start w-full">
               <div
                 className="w-3.5 h-3.5 rounded-full shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] border border-white ring-1 ring-slate-200"
                 style={{ backgroundColor: getEnvioColor?.(c.envio) }}

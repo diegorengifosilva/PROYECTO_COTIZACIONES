@@ -156,7 +156,7 @@ function RegistroItemManoObraModal({ open, onClose, onConfirm, item, areaCotizac
   };
 
   const handleSubmit = () => {
-    if (!form.area || !form.descripcion.trim()) return;
+    if (!form.area) return;
     onConfirm(form);
     onClose();
   };

@@ -196,9 +196,6 @@ const FilterCard = ({ onProcess, onReport, initialFilters = {} }) => {
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className="w-full flex items-center justify-between px-1 py-2 md:py-0 cursor-pointer md:cursor-default"
       >
-        <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-700">
-          <Filter className="w-4 h-4 text-blue-600" /> Filtros
-        </h2>
 
         <div className="md:hidden">
           <ChevronDown

@@ -26,6 +26,13 @@ export const ENVIO_STATE_MAP = {
   3: "Verde",
 };
 
+export const envioMap = {
+  0: "Pendiente de Envío para Revisión",
+  1: "Pendiente de Envío para Aprobación",
+  2: "Pendiente de Envío para Cliente",
+  3: "Enviado al Cliente",
+};
+
 // Helpers
 export function getEnvioNombre(code) {
   if (code === null || code === undefined) return "Sin estado";
@@ -40,6 +47,8 @@ export function getEnvioClass(code) {
   return ENVIO_STATE_CLASSES[code] || "bg-gray-200 text-gray-800";
 }
 
+export const getEnvioLabel = (envio) =>
+  envioMap[envio] || "Sin estado";
 
 /* ===========================================================
    DASHBOARD 2 — PROBABILIDAD

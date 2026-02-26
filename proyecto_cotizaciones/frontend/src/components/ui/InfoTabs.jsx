@@ -1626,73 +1626,215 @@ export default function InfoTabs({
     return acc + subtotalServicio * cantidadServicio;
   }, 0);
 
+  // Mueve un elemento dentro de un array
+  const moveInArray = (array, index, direction) => {
+    const newArray = [...array];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newArray.length) return array;
+    
+    const temp = newArray[index];
+    newArray[index] = newArray[targetIndex];
+    newArray[targetIndex] = temp;
+    return newArray;
+  };
+
+  // MOVER SERVICIOS (Nivel 1)
+  const handleMoveServicio = (id, direction) => {
+    setGruposServicios(prev => {
+      const entries = Object.entries(prev);
+      const index = entries.findIndex(([key]) => key === id);
+      if (index === -1) return prev;
+
+      const movedEntries = moveInArray(entries, index, direction);
+      return Object.fromEntries(movedEntries);
+    });
+  };
+
+  // MOVER SUBGRUPOS (Nivel 2)
+  const handleMoveSubgrupo = (servicioId, subgrupoId, direction) => {
+    setGruposServicios(prev => {
+      const servicio = prev[servicioId];
+      if (!servicio) return prev;
+
+      const idx = servicio.subgrupos.findIndex(sg => sg.id === subgrupoId);
+      const nuevosSubgrupos = moveInArray(servicio.subgrupos, idx, direction);
+
+      return {
+        ...prev,
+        [servicioId]: { ...servicio, subgrupos: nuevosSubgrupos }
+      };
+    });
+  };
+
+  // MOVER ITEMS (Nivel 3)
+  const handleMoveItem = (servicioId, subgrupoId, itemNum, direction) => {
+    setGruposServicios(prev => {
+      const servicio = prev[servicioId];
+      const subgrupoIdx = servicio.subgrupos.findIndex(sg => sg.id === subgrupoId);
+      const subgrupo = servicio.subgrupos[subgrupoIdx];
+      
+      const itemIdx = subgrupo.items.findIndex(it => it.num === itemNum);
+      const nuevosItems = moveInArray(subgrupo.items, itemIdx, direction);
+
+      const nuevosSubgrupos = [...servicio.subgrupos];
+      nuevosSubgrupos[subgrupoIdx] = { ...subgrupo, items: nuevosItems };
+
+      return {
+        ...prev,
+        [servicioId]: { ...servicio, subgrupos: nuevosSubgrupos }
+      };
+    });
+  };
+
+  // DRAG AND DROP SERVICIOS
+  const handleDragEndServicios = ({ active, over }) => {
+    if (!over) return;
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    setGruposServicios((prev) => {
+      const newData = { ...prev };
+
+      // 🔵 Mover Servicios (Nivel 1)
+      if (activeData.type === "servicio" && overData?.type === "servicio") {
+        const entries = Object.entries(newData);
+        const oldIdx = entries.findIndex(([id]) => id === active.id);
+        const newIdx = entries.findIndex(([id]) => id === over.id);
+        return Object.fromEntries(arrayMove(entries, oldIdx, newIdx));
+      }
+
+      // 🟢 Mover Items entre Subgrupos (Nivel 3)
+      if (activeData.type === "item") {
+        const { servicioId, subgrupoId } = activeData;
+        const targetSubgrupoId = overData?.subgrupoId || over.id;
+        
+        // Lógica de reubicación similar a suministros pero apuntando a:
+        // prev[servicioId].subgrupos[idx].items
+        // ... (aquí aplicarías un arrayMove o splice similar al de suministros)
+      }
+
+      return newData;
+    });
+  };
+
+  // 10. Atajos y selección múltiple para Servicios
+  const [selectedServicioItems, setSelectedServicioItems] = useState([]);
+
+  // Adaptar el useEffect de Suministros (Punto 10) para Servicios
+  useEffect(() => {
+    function handleKeyServicios(e) {
+      if (activeTabs.includes("servicios")) {
+        // 1. Mapear un "flat list" de servicios -> subgrupos -> items
+        // 2. Implementar ArrowUp / ArrowDown para navegar entre ellos
+        // 3. Implementar Delete para handleEliminarMultiplesServicios
+      }
+    }
+    window.addEventListener("keydown", handleKeyServicios);
+    return () => window.removeEventListener("keydown", handleKeyServicios);
+  }, [selectedServicioItems, gruposServicios]);
+
+  // Añadir estos estados que ya tienes en Suministros
+  const [ghostServiceItem, setGhostServiceItem] = useState(null);
+  const hoverTimerServiciosRef = useRef(null);
+
+  const handleGhostEnterServicios = (e, item) => {
+    clearTimeout(hoverTimerServiciosRef.current);
+    hoverTimerServiciosRef.current = setTimeout(() => {
+      setGhostServiceItem({
+        item,
+        anchor: e.currentTarget.getBoundingClientRect(),
+      });
+    }, 600);
+  };
+
+
+
   // =========
   // GESTIÓN
   // =========
   const GESTION_ACTIONS = {
-    C: {
-      condicionesGenerales: true,
-      asignarIntegro: true,
-      generarPDF: true,
-      descuentos: true,
-      enviarCotizacion: true,
-      retornar: true,
-      reporteSuministros:true,
-      reporteSuministrosXLS:true,
-      reporteServicios:true,
-      reporteDetallado:true,
-      reporteDetalladoXLS:true,
-      reporteResumen:true,
-      generarCopia: true,
-      generarNuevaVersion: true,
-      eliminar: true,
-      adjuntos: true,
-      mensajes:true,
-    },
-    R: {
-      condicionesGenerales: true,
-      asignarIntegro: true,
-      generarPDF: true,
-      descuentos: true,
-      enviarCotizacion: true,
-      retornar: true,
-      reporteSuministros:true,
-      reporteSuministrosXLS:true,
-      reporteServicios:true,
-      reporteDetallado:true,
-      reporteDetalladoXLS:true,
-      reporteResumen:true,
-      generarCopia: true,
-      generarNuevaVersion: true,
-      eliminar: true,
-      adjuntos: true,
-      mensajes:true,
-    },
-    A: {
+    0: {
       condicionesGenerales: true,
       generarCodigo: true,
+      asignarIntegro: true,
+      generarPDF: true,
+      descuentos: true,
+      enviarCotizacion: true,
+      reporteSuministros: true,
+      reporteServicios: true,
+      reporteDetallado: true,
+      reporteResumen: true,
+      generarCopia: true,
+      generarNuevaVersion: true,
+      eliminar: true,
+      adjuntos: true,
+      mensajes: true,
+      seguimiento: true,
+      probabilidad: true,
+    },
+    1: {
+      condicionesGenerales: true,
+      generarCodigo: true,
+      asignarIntegro: true,
+      generarPDF: true,
+      descuentos: true,
+      enviarCotizacion: true,
+      retornar: true,
+      reporteSuministros: true,
+      reporteServicios: true,
+      reporteDetallado: true,
+      reporteResumen: true,
+      generarCopia: true,
+      generarNuevaVersion: true,
+      eliminar: true,
+      adjuntos: true,
+      mensajes: true,
+      seguimiento: true,
+      probabilidad: true,
+    },
+    2: {
+      condicionesGenerales: true,
+      generarCodigo: true,
+      asignarIntegro: true,
       generarPDF: true,
       descuentos: true,
       enviarCorreo: true,
       retornar: true,
-      reporteSuministros:true,
-      reporteSuministrosXLS:true,
-      reporteServicios:true,
-      reporteDetallado:true,
-      reporteDetalladoXLS:true,
-      reporteResumen:true,
+      reporteSuministros: true,
+      reporteServicios: true,
+      reporteDetallado: true,
+      reporteResumen: true,
       generarCopia: true,
       generarNuevaVersion: true,
       eliminar: true,
       adjuntos: true,
-      mensajes:true,
+      mensajes: true,
+      seguimiento: true,
+      probabilidad: true,
+    },
+    3: {
+      condicionesGenerales: true,
+      asignarIntegro: true,
+      generarPDF: true,
+      descuentos: true,
+      retornar: true,
+      reporteSuministros: true,
+      reporteServicios: true,
+      reporteDetallado: true,
+      reporteResumen: true,
+      generarCopia: true,
+      generarNuevaVersion: true,
+      eliminar: true,
+      adjuntos: true,
+      mensajes: true,
       seguimiento: true,
       probabilidad: true,
     },
   };
 
   // fallback seguro
-  const acciones = GESTION_ACTIONS[modo] ?? GESTION_ACTIONS.C;
+  const acciones = GESTION_ACTIONS[envio] ?? GESTION_ACTIONS[0];
 
   // =================
   // ELIMINAR GRUPO
@@ -2569,7 +2711,7 @@ export default function InfoTabs({
                       <th className="w-10 py-1 border-r border-slate-300 text-center">Nro</th>
                       <th className="w-[130px] py-1 border-r border-slate-300 text-center">Código</th>
                       <th className="py-1 border-r border-slate-300 text-left px-3">Descripción / Detalle</th>
-                      <th className="w-[120px] py-1 border-r border-slate-300 text-center">Lugar</th>
+                      <th className="w-[120px] py-1 border-r border-slate-300 text-center">Dias</th>
                       <th className="w-14 py-1 border-r border-slate-300 text-center">Cant</th>
                       <th className="w-24 py-1 border-r border-slate-300 text-center">Valor Unit</th>
                       <th className="w-24 py-1 border-r border-slate-300 text-center">Total</th>
@@ -2681,7 +2823,7 @@ export default function InfoTabs({
                                       {item.des}
                                     </td>
                                     <td className="px-2 py-1 text-slate-700 border-r border-slate-100 text-center text-[10px] font-medium">
-                                      {item.lug}
+                                      {item.tde}
                                     </td>
                                     <td className="px-1 py-1 text-slate-900 border-r border-slate-100 text-center font-black">
                                       {item.can}

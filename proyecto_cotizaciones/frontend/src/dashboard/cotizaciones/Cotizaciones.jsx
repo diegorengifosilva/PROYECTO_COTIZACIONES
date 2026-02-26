@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
-import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User } from "lucide-react";
+import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User, MoreHorizontal, ClipboardCheck, LayoutDashboard , History, Globe, ListTodo, Layout, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -16,6 +16,9 @@ import { getEnvioColor, getEnvioNombre, ENVIO_STATE_COLORS } from "@/components/
 import AprobacionCotizacionModal from "../aprobacion_cotizacion/AprobacionCotizacionModal";
 import { useNavigate } from "react-router-dom";
 import CotizacionNuevaModal from "../aprobacion_cotizacion/CotizacionNuevaModal";
+import TablaCoti from "../../components/TablaCoti";
+import TablaHistorial from "../../components/TablaHistorial";
+import KpisCotizaciones from "../../components/KpisCotizaciones";
 
 const fetchCotizacionesAprobacion = async ({ queryKey }) => {
   const [_key, params] = queryKey;
@@ -95,6 +98,8 @@ export default function Cotizaciones() {
   const shadowOpacity = useTransform(scrollY, [0, 50], [0, 0.25]);
   const blurValue = useTransform(scrollY, [0, 100], [4, 8]);
 
+  const [tabActiva, setTabActiva] = useState("cotizaciones");
+
   // Efecto scroll flotante
   useEffect(() => {
     const onScroll = () => {
@@ -171,45 +176,178 @@ export default function Cotizaciones() {
       transition={{ duration: 0.5 }}
       className="min-h-screen w-full flex flex-col bg-gray-50 font-sans"
     >
-      <div className="flex-1 flex flex-col py-[clamp(8px,2vw,24px)] px-[clamp(8px,2vw,24px)]">
+      <div className="flex-1 flex flex-col">
 
-        {/* HEADER */}
+        {/* HEADER ESTILO ERP COMPACTO */}
         <motion.div
           style={{
-            boxShadow: shadowOpacity.get() > 0 ? `0 2px 8px rgba(0,0,0,${shadowOpacity.get()})` : "none",
+            boxShadow: shadowOpacity.get() > 0 ? "0 2px 8px rgba(0,0,0,0.04)" : "none",
             backdropFilter: `blur(${blurValue.get()}px)`,
           }}
-          className="sticky top-0 z-30 bg-white/90 border-b border-gray-200 rounded-2xl shadow-md px-[clamp(12px,2vw,20px)] py-[clamp(8px,1.2vw,12px)] mb-[clamp(10px,2vw,16px)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[clamp(8px,1.5vw,12px)]"
+          className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 pt-4 flex flex-col gap-1"
         >
-          <div className="flex-1 min-w-0">
-            <motion.h1
-              className="font-bold flex items-center gap-3 truncate"
-              style={{ fontSize: "clamp(1rem,2.2vw,2rem)" }}
-            >
-              <BriefcaseBusiness className="w-[clamp(20px,3vw,30px)] h-[clamp(20px,3vw,30px)] text-gray-900" />
-              Cotizaciones
-            </motion.h1>
-            <motion.p
-              className="mt-1 text-gray-600 italic truncate"
-              style={{ fontSize: "clamp(0.7rem,0.9vw,1rem)" }}
-            >
-              Gestión de tus <span className="font-semibold text-blue-600">cotizaciones</span>.
-            </motion.p>
-          </div>
 
-          {/* BOTÓN NUEVA COTIZACIÓN */}
-          <div className="flex flex-wrap gap-2 justify-end">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          {/* TOP */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+            {/* IZQUIERDA */}
+            <div className="flex-1 min-w-0">
+
+              {/* Breadcrumb */}
+              <nav className="flex items-center gap-2 text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">
+                <span className="hover:text-cyan-600 cursor-pointer transition-colors">Comercial</span>
+                <span>/</span>
+                <span>Cotizaciones</span>
+              </nav>
+
+              {/* Título */}
+              <div className="flex items-center gap-2">
+                <div className="bg-cyan-600/10 text-cyan-700 w-7 h-7 rounded-md flex items-center justify-center shrink-0">
+                  <BriefcaseBusiness className="w-4 h-4" />
+                </div>
+
+                <h1 className="text-lg font-semibold text-slate-800 tracking-tight truncate">
+                  Cotizaciones
+                </h1>
+              </div>
+            </div>
+
+
+            {/* ACCIONES DINÁMICAS */}
+            <div className="flex items-center gap-2">
+
               <Button
                 onClick={() => setOpenNueva(true)}
-                variant="ghost"
-                className="text-[11px] font-black uppercase tracking-widest text-teal-700 hover:bg-teal-100 border border-transparent hover:border-teal-200 rounded-xl h-9 px-8 transition-all"
-              > 
-                <FilePlus className="w-4 h-4"/>Nueva Cotización
+                className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium px-4 h-8 rounded-md flex items-center gap-2 shadow-sm transition"
+              >
+                <FilePlus size={14} />
+                Nueva
               </Button>
-            </motion.div>
+
+              <button className="p-1.5 hover:bg-slate-100 rounded-md text-slate-500 transition">
+                <MoreHorizontal size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* SUBNAV ESTILO JIRA */}
+          <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
+            {[
+              { id: "resumen", label: "Resumen", icon: <Globe size={16} /> },
+              { id: "cotizaciones", label: "Cotizaciones", icon: <ListTodo size={16} /> },
+              { id: "tablero", label: "Tablero", icon: <Layout size={16} /> },
+              { id: "historial", label: "Historial", icon: <History size={16} /> },
+            ].map((tab) => {
+              const isActive = tabActiva === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setTabActiva(tab.id)}
+                  className={`group relative flex items-center gap-2 px-3 pb-3 text-sm font-medium transition-all outline-none ${
+                    isActive 
+                      ? "text-cyan-600" 
+                      : "text-slate-600 hover:bg-slate-50 rounded-t-sm"
+                  }`}
+                >
+                  {/* Icono con color dinámico */}
+                  <span className={`${isActive ? "text-cyan-600" : "text-slate-400 group-hover:text-slate-600"}`}>
+                    {tab.icon}
+                  </span>
+                  
+                  <span>{tab.label}</span>
+
+                  {/* Indicador Activo (Línea azul de Jira) */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute bottom-0 left-0 right-0 h-[3px] bg-cyan-600 rounded-t-full"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+            
+            {/* Botón "+" de Jira para añadir más tabs */}
+            <button className="p-1.5 mb-2 ml-1 text-slate-500 hover:bg-slate-100 rounded transition-colors">
+              <Plus size={18} />
+            </button>
           </div>
         </motion.div>
+
+        {/* CONTENIDO DINÁMICO */}
+        <div className="p-6 flex flex-col flex-1 gap-6">
+          {tabActiva === "resumen" && (
+            <KpisCotizaciones 
+              stats={stats}
+              isFetching={isFetching}
+            />
+          )}
+
+          {tabActiva === "cotizaciones" && (
+            <TablaCoti
+              data={cotizacionesFiltradas}
+              clientesMap={clientesMap}
+              isFetching={isFetching}
+              onRowClick={(c) => {
+                setCotizacionSeleccionada(c);
+                setDetalleOpen(true);
+              }}
+              getEnvioColor={getEnvioColor}
+              getEnvioNombre={getEnvioNombre}
+              
+              // 1. Cálculo de filtros activos para el Badge del botón
+              activeFiltersCount={Object.values(currentFilters).filter(v => v !== "%" && v !== "" && v !== annoActual).length}
+              
+              // 2. Acción de limpiar
+              onClearFilters={() => setCurrentFilters({
+                anno: new Date().getFullYear(),
+                mes: "%", cliente: "%", estado: "%", area: "%", envio: "%",
+                campo: "", valor: "", generalCampo: "", generalValor: "",
+                index: 1, num_regs: 10
+              })}
+              
+              // 3. El componente inyectado (Desnudado para el Popover)
+              filterComponent={
+                <FilterCard
+                  dashboard="cotizaciones"
+                  className="w-full"
+                  compact
+                  processing={processingFilters}
+                  onReport={handleReport}
+                  onProcess={async (filters, event) => {
+                    if (event) event.preventDefault();
+                    setProcessingFilters(true);
+                    try {
+                      const params = {
+                        anno: filters.anio || annoActual,
+                        mes: filters.mes || "%",
+                        cliente: filters.cliente || "%",
+                        estado: filters.estado || "%",
+                        area: filters.area || "%",
+                        envio: filters.envio || "%",
+                        ...(filters.campo && filters.valor
+                          ? {
+                              campo: filters.campo,
+                              valor: filters.valor,
+                            }
+                          : {}),
+                        ...(filters.fechaInicio ? { fechaInicio: filters.fechaInicio } : {}),
+                        ...(filters.fechaFin ? { fechaFin: filters.fechaFin } : {}),
+                      };
+
+                      setCurrentFilters(params); // 🔥 esto dispara el refetch automático
+                    } finally {
+                      setProcessingFilters(false);
+                    }
+                  }}
+                />
+              }
+            />
+          )}
+
+          {tabActiva === "historial" &&<TablaHistorial />}
+        </div>
 
         {/* SECCIÓN KPIs - V&C BUSINESS INTELLIGENCE */}
         <div className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mb-10 w-full">

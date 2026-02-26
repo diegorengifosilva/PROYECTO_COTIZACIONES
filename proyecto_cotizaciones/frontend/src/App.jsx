@@ -85,11 +85,11 @@ export default function App() {
             {/* Redirect */}
             <Route
               path="/"
-              element={<Navigate to="/dashboard/cotizaciones" replace />}
+              element={<Navigate to="/dashboard/aprobacion-cotizacion" replace />}
             />
             <Route
               path="*"
-              element={<Navigate to="/dashboard/cotizaciones" replace />}
+              element={<Navigate to="/dashboard/aprobacion-cotizacion" replace />}
             />
           </Routes>
 

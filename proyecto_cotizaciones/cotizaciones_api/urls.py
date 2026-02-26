@@ -56,6 +56,11 @@ urlpatterns = [
     path("cotizaciones/<str:num_reg>/pdf/", views.cotizacion_pdf, name="cotizacion_pdf",),
     path("cotizaciones/<str:num_reg>/descuento/", views.descuento_cotizacion, name="obtener_descuento_cotizacion"),
 
+    # OBJETIVOS
+    path("dashboard/objetivos/", views.objetivos_anuales, name="objetivos_anuales"),
+    path("dashboard/logrado/", views.logrado_dashboard, name="logrado_dashboard"),
+    path("dashboard/analisis/", views.cotizaciones_analisis_view, name="cotizaciones-analisis"),
+
     # DB_VC
     path("cotizaciones/areas/", views.lista_areas, name="lista_areas"),
     path("cotizaciones/clientes/", views.lista_clientes, name="lista_clientes"),

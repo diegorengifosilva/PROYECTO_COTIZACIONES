@@ -86,6 +86,8 @@ from .models import (
     vc_tab_ceyesa,
     vc_tab_hoffman,
     alm_articulos,
+    ObjetivoAnualArea,
+    ObjetivoAnual,
     )
 from .serializers import (
     DashboardCotizacionTablaSerializer,
@@ -110,6 +112,8 @@ from .serializers import (
     CeyesaSerializer,
     HoffmanSerializer,
     AlmArticulosSerializer,
+    ObjetivoAnualAreaSerializer,
+    ObjetivoAnualSerializer,
 )
 
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
@@ -1274,6 +1278,8 @@ def eliminar_archivo(request):
             return JsonResponse({"ok": False, "error": str(e)})
 
     return JsonResponse({"ok": False, "error": "Método no permitido"})
+
+#========================================================================================
 
 ##=========##
 ## GESTION ##
@@ -2459,6 +2465,365 @@ def retornar_cotizacion(request, num_reg):
             status=500
         )
 
+#========================================================================================
+
+##===================##
+## OBJETIVOS ANUALES ##
+##===================##
+@api_view(["GET", "POST", "PUT"])
+def objetivos_anuales(request):
+
+    # 🔹 Código real del usuario (clave para todo el sistema)
+    usuario_codigo = request.user.usuario_usu
+
+    # =================
+    # LISTAR
+    # =================
+    if request.method == "GET":
+        anno = request.query_params.get("anno")
+
+        if not anno:
+            return Response(
+                {"error": "Debe enviar el año"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            objetivo = ObjetivoAnual.objects.prefetch_related("areas").get(
+                anno=anno,
+                encargado=usuario_codigo,
+                activo=True
+            )
+
+            serializer = ObjetivoAnualSerializer(objetivo)
+            return Response(serializer.data)
+
+        except ObjetivoAnual.DoesNotExist:
+            return Response(
+                {"message": "No existe objetivo para ese año"},
+                status=status.HTTP_200_OK
+            )
+
+    # =================
+    # CREAR
+    # =================
+    if request.method == "POST":
+
+        # 🔥 Desactiva objetivos anteriores del mismo usuario
+        ObjetivoAnual.objects.filter(
+            encargado=usuario_codigo,
+            activo=True
+        ).update(activo=False)
+
+        serializer = ObjetivoAnualSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(encargado=usuario_codigo)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # =================
+    # ACTUALIZAR
+    # =================
+    if request.method == "PUT":
+        anno = request.data.get("anno")
+
+        if not anno:
+            return Response(
+                {"error": "Debe enviar el año"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            objetivo = ObjetivoAnual.objects.get(
+                anno=anno,
+                encargado=usuario_codigo
+            )
+        except ObjetivoAnual.DoesNotExist:
+            return Response(
+                {"error": "No existe ese objetivo"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = ObjetivoAnualSerializer(objetivo, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+##=========##
+## RESUMEN ##
+##=========##
+@api_view(["GET"])
+def resumen_dashboard(request):
+
+    usuario_codigo = request.user.usuario_usu
+    nombre_corto = request.user.nomb_cort_usu
+
+    anno = timezone.now().year
+    mes = timezone.now().month
+
+    # ===============================
+    # OBJETIVO ANUAL
+    # ===============================
+    try:
+        objetivo = ObjetivoAnual.objects.prefetch_related("areas").get(
+            encargado=usuario_codigo,
+            anno=anno,
+            activo=True
+        )
+    except ObjetivoAnual.DoesNotExist:
+        return Response({"message": "Sin objetivo configurado"})
+
+    # ===============================
+    # COTIZACIONES ANUALES
+    # ===============================
+    cotizaciones_anuales = DashboardCotizacion.objects.filter(
+        nombc=nombre_corto,
+        fecha__year=anno
+    ).values_list("num_reg", flat=True)
+
+    # ===============================
+    # COTIZACIONES MENSUALES
+    # ===============================
+    cotizaciones_mes = DashboardCotizacion.objects.filter(
+        nombc=nombre_corto,
+        fecha__year=anno,
+        fecha__month=mes
+    ).values_list("num_reg", flat=True)
+
+    # ===============================
+    # EXPRESIÓN UTILIDAD
+    # ===============================
+    utilidad_expr = ExpressionWrapper(
+        F("tou") * F("tde") * F("can"),
+        output_field=DecimalField(max_digits=18, decimal_places=2)
+    )
+
+    # ===============================
+    # ANUAL
+    # ===============================
+    hh_anual = CotiServicios.objects.filter(
+        num_reg__in=cotizaciones_anuales,
+        cog__regex=r"^\d{3}4",
+        nig=2
+    ).aggregate(total=Coalesce(Sum("toc"), Decimal("0")))["total"]
+
+    utilidad_anual = CotiServicios.objects.filter(
+        num_reg__in=cotizaciones_anuales,
+        cog__regex=r"^\d{3}[46]"
+    ).aggregate(total=Coalesce(Sum(utilidad_expr), Decimal("0")))["total"]
+
+    logrado_anual = hh_anual + utilidad_anual
+
+    # ===============================
+    # MENSUAL
+    # ===============================
+    hh_mes = CotiServicios.objects.filter(
+        num_reg__in=cotizaciones_mes,
+        cog__regex=r"^\d{3}4",
+        nig=2
+    ).aggregate(total=Coalesce(Sum("toc"), Decimal("0")))["total"]
+
+    utilidad_mes = CotiServicios.objects.filter(
+        num_reg__in=cotizaciones_mes,
+        cog__regex=r"^\d{3}[46]"
+    ).aggregate(total=Coalesce(Sum(utilidad_expr), Decimal("0")))["total"]
+
+    logrado_mes = hh_mes + utilidad_mes
+
+    # ===============================
+    # METAS
+    # ===============================
+    min_anual = sum(a.minimo for a in objetivo.areas.all())
+    max_anual = sum(a.maximo for a in objetivo.areas.all())
+
+    meta_mensual = min_anual / Decimal("12")
+
+    # ===============================
+    # SEMÁFOROS
+    # ===============================
+    def calcular_estado(valor, minimo, maximo):
+        if valor < minimo:
+            return "rojo"
+        elif minimo <= valor < maximo:
+            return "amarillo"
+        return "verde"
+
+    estado_anual = calcular_estado(logrado_anual, min_anual, max_anual)
+    estado_mes = calcular_estado(logrado_mes, meta_mensual, max_anual / 12)
+
+    # ===============================
+    # RESPUESTA FINAL
+    # ===============================
+    return Response({
+        "anual": {
+            "logrado": logrado_anual,
+            "min": min_anual,
+            "max": max_anual,
+            "estado": estado_anual
+        },
+        "mensual": {
+            "logrado": logrado_mes,
+            "meta": meta_mensual,
+            "estado": estado_mes
+        }
+    })
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def logrado_dashboard(request):
+
+    anno = int(request.GET.get("anno", datetime.now().year))
+    mes_actual = str(datetime.now().month).zfill(2)  # 01, 02, etc
+
+    print(f"DEBUG: Año = {anno}, Mes actual = {mes_actual}")
+
+    # Cotizaciones aprobadas del año
+    cotizaciones_anuales = DashboardCotizacion.objects.filter(
+        anno=anno,
+        envio="3",
+    )
+    print(f"DEBUG: Cotizaciones anuales encontradas = {cotizaciones_anuales.count()}")
+
+    # Cotizaciones del mes actual
+    cotizaciones_mensuales = cotizaciones_anuales.filter(
+        mes=mes_actual
+    )
+    print(f"DEBUG: Cotizaciones mensuales encontradas = {cotizaciones_mensuales.count()}")
+
+    utilidad_expr = ExpressionWrapper(
+        F("tou") * F("can") * F("tde"),
+        output_field=DecimalField(max_digits=18, decimal_places=2),
+    )
+
+    def calcular_logrado(cotizaciones):
+        total_hh = Decimal("0.00")
+        total_utilidad = Decimal("0.00")
+
+        num_regs = [coti.num_reg for coti in cotizaciones]
+        if not num_regs:
+            return Decimal("0.00")
+
+        # HH PROPIOS
+        hh_agg = CotiServicios.objects.filter(
+            num_reg__in=num_regs,
+            cog__regex=r"^\d{3}4",
+            nig=2,
+        ).aggregate(
+            total=Coalesce(Sum("toc"), Decimal("0.00"), output_field=DecimalField(max_digits=18, decimal_places=2))
+        )
+        total_hh = hh_agg["total"]
+
+        # UTILIDAD
+        utilidad_agg = CotiServicios.objects.filter(
+            num_reg__in=num_regs,
+        ).aggregate(
+            total=Coalesce(Sum(utilidad_expr), Decimal("0.00"))
+        )
+        total_utilidad = utilidad_agg["total"]
+
+        return total_hh + total_utilidad
+
+    total_anual = calcular_logrado(cotizaciones_anuales)
+    total_mensual = calcular_logrado(cotizaciones_mensuales)
+
+    print(f"DEBUG: Total anual = {total_anual}, Total mensual = {total_mensual}")
+
+    return JsonResponse({
+        "anual": float(total_anual),
+        "mensual": float(total_mensual),
+    })
+
+##==========##
+## ANALISIS ##
+##==========##
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cotizaciones_analisis_view(request):
+    try:
+        from django.db.models import Sum, Count, Avg
+        from datetime import date
+
+        dimension = request.data.get("dimension")
+        metrica = request.data.get("metrica", "monto")
+        filtros = request.data.get("filtros", {})
+
+        qs = DashboardCotizacion.objects.all()
+
+        # ==========================
+        # Filtros globales
+        # ==========================
+        anno = filtros.get("anno", date.today().year)
+        mes = filtros.get("mes")
+
+        qs = qs.filter(fecha__year=anno)
+
+        if mes:
+            qs = qs.filter(fecha__month=mes)
+
+        # Aquí puedes reutilizar tu lógica de filtros actual
+        # cliente, estado, area, etc.
+
+        # ==========================
+        # Dimensión dinámica
+        # ==========================
+        DIMENSION_MAP = {
+            "area": "area_codigo",
+            "estado": "estado_nombre",
+            "cliente": "cliente_nombre",
+            "moneda": "tmone",
+            "mes": "fecha__month",
+            "vendedor": "nombt",
+        }
+
+        campo = DIMENSION_MAP.get(dimension)
+
+        if not campo:
+            return Response({"error": "Dimensión no válida"}, status=400)
+
+        # ==========================
+        # Métrica dinámica
+        # ==========================
+        if metrica == "monto":
+            agg = Sum("tot_c")
+        elif metrica == "cantidad":
+            agg = Count("num_reg")
+        elif metrica == "promedio":
+            agg = Avg("tot_c")
+        else:
+            agg = Sum("tot_c")
+
+        data = (
+            qs.values(campo)
+            .annotate(valor=agg)
+            .order_by("-valor")
+        )
+
+        # ==========================
+        # Formato frontend
+        # ==========================
+        resultado = []
+
+        for r in data:
+            resultado.append({
+                dimension: r[campo],
+                "valor": round(float(r["valor"] or 0), 2)
+            })
+
+        return Response(resultado)
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return Response({"error": str(e)}, status=500)
+    
+#========================================================================================
+
 ##================##
 ## DATOS DE BD_VC ##
 ##================##
@@ -2633,6 +2998,8 @@ def listar_usuario(request):
         return Response(serializer.data)
     except seg_usuario.DoesNotExist:
         return Response({"detail": "Usuario no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+#========================================================================================
 
 ##==========##
 ## REPORTES ##
@@ -3148,31 +3515,28 @@ def reporte_detallado_cotizacion(request, num_reg):
     ganancia_hh_propios = total_hh_propios - costo_hh_propios
 
     # ==========================================================
-    # HH OTRAS AREAS (MOI → cog ???6, área distinta)
+    # HH OTRAS AREAS (MOI → cog ???4, área distinta)
     # ==========================================================
-    qs_total_otras = CotiServicios.objects.filter(
+    qs_otras = CotiServicios.objects.filter(
         num_reg=num_reg,
-        cog__regex=r"^\d{3}6",
-        nig=0,
-    )
+        cog__regex=r"^\d{3}4",
+        nig=2
+    ).exclude(tpr=area_cotizacion)
 
-    total_expr_otras = ExpressionWrapper(
-        F("tot") * F("can"),
-        output_field=DecimalField(max_digits=18, decimal_places=2)
-    )
-
-    total_hh_otras = qs_total_otras.aggregate(
-        total=Coalesce(Sum(total_expr_otras), Decimal("0"))
+    total_hh_otras = qs_otras.aggregate(
+        total=Coalesce(
+            Sum("tot"), 
+            Decimal("0.00"),
+            output_field=DecimalField(max_digits=18, decimal_places=2)
+        )
     )["total"]
 
-    qs_costo_otras = CotiServicios.objects.filter(
-        num_reg=num_reg,
-        cog__regex=r"^\d{3}6",
-        nig=1,
-    )
-
-    costo_hh_otras = qs_costo_otras.aggregate(
-        costo=Coalesce(Sum("toc"), Decimal("0"))
+    costo_hh_otras = qs_otras.aggregate(
+        costo=Coalesce(
+            Sum("toc"), 
+            Decimal("0.00"),
+            output_field=DecimalField(max_digits=18, decimal_places=2)
+        )
     )["costo"]
 
     ganancia_hh_otras = total_hh_otras - costo_hh_otras
@@ -3266,6 +3630,9 @@ def reporte_detallado_cotizacion(request, num_reg):
 
     total_descuento = -costo_descuento
 
+    print(f"DEBUG: Area Cotizacion es {area_cotizacion}")
+    print(f"DEBUG: Registros terminados en 6: {CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r'^\d{3}6').count()}")
+    
     # ==========================================================
     # TABLA FINAL
     # ==========================================================
@@ -3321,9 +3688,9 @@ def reporte_detallado_excel(request, num_reg):
     costo_hh_propios = qs.aggregate(costo=Coalesce(Sum("toc"), Decimal("0")))["costo"]
     ganancia_hh_propios = total_hh_propios - costo_hh_propios
 
-    qs_total_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}6", nig=0)
+    qs_total_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}4", nig=0)
     total_hh_otras = qs_total_otras.aggregate(total=Coalesce(Sum(F("tot") * F("can")), Decimal("0")))["total"]
-    qs_costo_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}6", nig=1)
+    qs_costo_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}4", nig=1)
     costo_hh_otras = qs_costo_otras.aggregate(costo=Coalesce(Sum("toc"), Decimal("0")))["costo"]
     ganancia_hh_otras = total_hh_otras - costo_hh_otras
 
@@ -3427,9 +3794,9 @@ def reporte_resumen_cotizacion(request, num_reg):
     ganancia_hh_propios = total_hh_propios - costo_hh_propios
 
     # HH otras áreas
-    qs_hh_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}6", nig=1)
+    qs_hh_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}4", nig=1)
     costo_hh_otras = qs_hh_otras.aggregate(costo=Coalesce(Sum("toc"), Decimal("0")))["costo"]
-    ganancia_hh_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}6", nig=0).aggregate(total=Coalesce(Sum(F("tot")*F("can")), Decimal("0")))["total"] - costo_hh_otras
+    ganancia_hh_otras = CotiServicios.objects.filter(num_reg=num_reg, cog__regex=r"^\d{3}4", nig=0).aggregate(total=Coalesce(Sum(F("tot")*F("can")), Decimal("0")))["total"] - costo_hh_otras
 
     # Costo servicios
     qs_servicios = CotiServicios.objects.filter(num_reg=num_reg, mov="05")
@@ -3475,6 +3842,8 @@ def reporte_resumen_cotizacion(request, num_reg):
         context,
     )
 
+#========================================================================================
+
 ##============##
 ## AÑO ACTUAL ##
 ##============##
@@ -3486,6 +3855,7 @@ def anno_actual(request):
     except cont_cias.DoesNotExist:
         return Response({"anno": timezone.now().year})
 
+#========================================================================================
 
 ##===============##
 ## FUNCION TEXTO ##

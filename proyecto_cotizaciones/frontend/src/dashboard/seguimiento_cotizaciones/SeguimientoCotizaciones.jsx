@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
-import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User } from "lucide-react";
+import { BriefcaseBusiness, FilePlus, Eye, TrendingUp, DollarSign, BarChart3, Filter, Loader, PieChart, Calculator, FileSpreadsheet, Wallet2, Landmark, Scale, Coins, User, MoreHorizontal, ClipboardCheck, LayoutDashboard , History, Globe, ListTodo, Layout, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -16,6 +16,9 @@ import { getProbNombre, getProbColor, PROB_STATE_COLORS } from "@/components/ui/
 import AprobacionCotizacionModal from "../aprobacion_cotizacion/AprobacionCotizacionModal";
 import { useNavigate } from "react-router-dom";
 import CotizacionNuevaModal from "../aprobacion_cotizacion/CotizacionNuevaModal";
+import TablaCoti from "../../components/TablaCoti";
+import TablaHistorial from "../../components/TablaHistorial";
+import KpisCotizaciones from "../../components/KpisCotizaciones";
 
 const fetchCotizacionesAprobacion = async ({ queryKey }) => {
   const [_key, params = {}] = queryKey;
@@ -98,6 +101,7 @@ export default function SeguimientoCotizaciones() {
   const shadowOpacity = useTransform(scrollY, [0, 50], [0, 0.25]);
   const blurValue = useTransform(scrollY, [0, 100], [4, 8]);
 
+
   // Efecto scroll flotante
   useEffect(() => {
     const onScroll = () => {
@@ -174,7 +178,7 @@ export default function SeguimientoCotizaciones() {
       transition={{ duration: 0.5 }}
       className="min-h-screen w-full flex flex-col bg-gray-50 font-sans"
     >
-      <div className="flex-1 flex flex-col py-[clamp(8px,2vw,24px)] px-[clamp(8px,2vw,24px)]">
+      <div className="flex-1 flex flex-col">
 
         {/* HEADER */}
         <motion.div

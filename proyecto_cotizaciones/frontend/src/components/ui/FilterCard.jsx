@@ -110,7 +110,14 @@ const FilterCard = ({ onProcess, onReport, initialFilters = {} }) => {
     fetchData();
   }, []);
 
-  const anios = Array.from({ length: currentYear - 2010 + 1 }, (_, i) => 2010 + i);
+  // Busca esta línea y cámbiala por esto:
+  const aniosOptions = [
+    { value: "%", label: "-- Todos --" },
+    ...Array.from({ length: currentYear - 2010 + 1 }, (_, i) => {
+      const anio = 2010 + i;
+      return { value: anio.toString(), label: anio.toString() };
+    }).reverse()
+  ];
 
   const meses = [
     { value: "%", label: "-- Todos --" },
@@ -237,7 +244,7 @@ const FilterCard = ({ onProcess, onReport, initialFilters = {} }) => {
                 <SelectBox
                   label="Año"
                   icon={<Calendar className="w-4 h-4" />}
-                  options={anios.reverse().map((a) => ({ value: a, label: a }))}
+                  options={aniosOptions} // Usamos la nueva constante con el "Todos" incluido
                   value={filters.anio}
                   onChange={(e) => handleChange("anio", e.target.value)}
                 />

@@ -66,6 +66,8 @@ import {
 
 import { CSS } from "@dnd-kit/utilities";
 
+import { createPortal } from 'react-dom'; // 1. Importar
+
 const handleDragEndGrupo = (event) => {
   const { active, over } = event;
 
@@ -161,11 +163,11 @@ export default function InfoTabs({
   itemActivo,
   setItemActivo,
   onReporteSuministros,
-  onExportSuministrosExcel,
   onReporteServicios,
   onReporteDetallado,
-  onExportDetalladoExcel,
   onReporteResumen,
+  onReporteVentaTotal,
+  onReporteVentaParcial,
 }) {
 
   const [clientes, setClientes] = useState([]);
@@ -198,10 +200,25 @@ export default function InfoTabs({
       return;
     }
 
-    setData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
+    setData(prev => {
+      const newState = { ...prev, [field]: value };
+
+      // 1. Si el tipo de cotización deja de ser Venta (V), 
+      // reseteamos los campos logísticos (tven y costo_envio)
+      if (field === "cotit" && value !== "V") {
+        newState.tven = "";          // Antes era modo_envio
+        newState.costo_envio = "";   
+      }
+      
+      // 2. Lógica de limpieza al cambiar entre Total y Parcial
+      // Si el usuario pasa a Venta Parcial, el "Costo Global" de cabecera 
+      // debería ponerse en 0 porque ahora el costo se pone por ítem.
+      if (field === "tven" && value === "P") {
+        newState.costo_envio = 0; 
+      }
+
+      return newState;
+    });
   };
 
   // ========================
@@ -264,6 +281,11 @@ export default function InfoTabs({
       };
       fetchClientes();
   }, []); 
+
+  const clientesOptions = useMemo(
+    () => clientes.map((c) => ({ id: c.codigo, nombre: c.nombre })),
+    [clientes]
+  );
 
   // ======= CLIENTES =======
   const clienteRef = useRef(null);
@@ -487,6 +509,24 @@ export default function InfoTabs({
     setHighlightEncargadoIndex(-1);
   };
 
+  // UX: cuando hay resultados, destacamos el primero para permitir `Enter`
+  useEffect(() => {
+    if (!showEncargadosDropdown) return;
+
+    if (!encargadosResults || encargadosResults.length === 0) {
+      setHighlightEncargadoIndex(-1);
+      return;
+    }
+
+    if (highlightEncargadoIndex === -1) {
+      setHighlightEncargadoIndex(0);
+    }
+  }, [
+    showEncargadosDropdown,
+    encargadosResults,
+    highlightEncargadoIndex,
+  ]);
+
   //================
   // COMERCIAL
   //================
@@ -500,7 +540,6 @@ export default function InfoTabs({
   const comercialRef = useRef(null);
 
   const fetchComercialInline = async (q = "") => {
-
     setComercialLoading(true);
 
     try {
@@ -510,10 +549,20 @@ export default function InfoTabs({
 
       let usuarios = Array.isArray(data) ? data : [];
 
-      // (opcional luego)
-      // usuarios = usuarios.filter(u => u.area === 3);
+      // 1. Definimos los usuarios permitidos (Whitelist)
+      const IDsPermitidos = [
+        "eduardo.bonilla",
+        "claudia.carbonel",
+        "luisa.oncebay",
+        "diego.rengifo" // Tu usuario para pruebas
+      ];
 
-      setComercialResults(usuarios);
+      // 2. Filtramos la respuesta de la API
+      const filtrados = usuarios.filter(u => 
+        IDsPermitidos.includes(u.usuario_usu)
+      );
+
+      setComercialResults(filtrados);
 
     } catch (err) {
       console.error("❌ Error buscando comerciales:", err);
@@ -545,6 +594,24 @@ export default function InfoTabs({
     setShowComercialDropdown(false);
     setHighlightComercialIndex(-1);
   };
+
+  // UX: cuando hay resultados, destacamos el primero para permitir `Enter`
+  useEffect(() => {
+    if (!showComercialDropdown) return;
+
+    if (!comercialResults || comercialResults.length === 0) {
+      setHighlightComercialIndex(-1);
+      return;
+    }
+
+    if (highlightComercialIndex === -1) {
+      setHighlightComercialIndex(0);
+    }
+  }, [
+    showComercialDropdown,
+    comercialResults,
+    highlightComercialIndex,
+  ]);
 
   useEffect(() => {
 
@@ -642,6 +709,24 @@ export default function InfoTabs({
     setHighlightTecnicoIndex(-1);
   };
 
+  // UX: cuando hay resultados, destacamos el primero para permitir `Enter`
+  useEffect(() => {
+    if (!showTecnicoDropdown) return;
+
+    if (!tecnicoResults || tecnicoResults.length === 0) {
+      setHighlightTecnicoIndex(-1);
+      return;
+    }
+
+    if (highlightTecnicoIndex === -1) {
+      setHighlightTecnicoIndex(0);
+    }
+  }, [
+    showTecnicoDropdown,
+    tecnicoResults,
+    highlightTecnicoIndex,
+  ]);
+
   useEffect(() => {
 
     if (!tecnicoFocused) return;
@@ -737,6 +822,11 @@ export default function InfoTabs({
     { id: "50% Adelanto, 50% Contra Entrega", nombre: "50% Adelanto, 50% Contra Entrega" },
     { id: "100% Factura a 180 días", nombre: "100% Factura a 180 días" },
   ]
+
+  const tipoVentaOptions = [
+    { id: "P", nombre: "Venta Parcial" },
+    { id: "T", nombre: "Venta Total" },
+  ];
 
   // =====================
   // UTIL: PARSE COG
@@ -936,8 +1026,10 @@ export default function InfoTabs({
         ref={setNodeRef}
         style={style}
         {...attributes}
+        onMouseLeave={handleGhostLeave}
         onDoubleClick={(e) => {
           e.stopPropagation();
+          clearTimeout(hoverTimerRef.current);
           setGrupoActivo(cog);
           setItemActivo(item);
           setOpenItemModal(true);
@@ -966,8 +1058,8 @@ export default function InfoTabs({
           { value: item.pro, className: "px-2 py-1 text-slate-700 border-r border-slate-100 text-center text-[10px] font-medium uppercase" },
           { value: item.tde, className: "px-1 py-1 text-slate-700 border-r border-slate-100 text-center font-bold" },
           { value: item.can, className: "px-1 py-1 text-slate-900 border-r border-slate-100 text-center font-black" },
-          { value: Number(item.val).toFixed(2), className: "px-2 py-1 text-slate-700 border-r border-slate-100 text-right pr-3 font-medium" },
-          { value: Number(item.tot).toFixed(2), className: "px-2 py-1 text-slate-900 border-r border-slate-100 text-right pr-3 font-black bg-slate-50/50" },
+          { value: item.val ? formatMoney(item.val) : "0.00", className: "px-2 py-1 text-slate-700 border-r border-slate-100 text-right pr-3 font-medium" },
+          { value: item.tot ? formatMoney(item.tot) : "0.00", className: "px-2 py-1 text-slate-900 border-r border-slate-100 text-right pr-3 font-black bg-slate-50/50" },
         ].map((col, i) => (
           <td
             key={i}
@@ -1121,25 +1213,42 @@ export default function InfoTabs({
   const hoverTimerRef = useRef(null);
 
   function GhostPreview({ item, anchor, onEdit }) {
-    if (!item || !anchor) return null;
+    if (!item || !anchor || openItemModal) return null;
 
-    return (
+    // 1. Definimos dimensiones aproximadas del modal (Header + Body)
+    const modalHeight = 380; 
+    const gap = 10; // Espacio entre la fila y el modal
+
+    // 2. Calculamos el espacio disponible debajo de la fila
+    const spaceBelow = window.innerHeight - anchor.bottom;
+
+    // 3. Lógica inteligente: ¿Cabe abajo? 
+    const preferredTop = anchor.bottom + gap;
+    const overflow = (preferredTop + modalHeight) - window.innerHeight;
+
+    // Si el overflow es positivo, significa que se sale por abajo. 
+    // Le restamos ese exceso (más un pequeño margen de 20px)
+    const finalTop = overflow > 0 
+      ? preferredTop - overflow + 60 
+      : preferredTop;
+
+    return createPortal(
       <div
-        className="fixed z-[90] w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+        className="fixed z-[9999] w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
         style={{
-          top: Math.max(
-            anchor.top - 50,
-            200
-          ),
+          top: finalTop,
+          // Alineamos el modal con el inicio de la descripción (aprox 120px desde el inicio de la fila)
+          // Pero controlamos que no se salga por la derecha de la ventana
           left: Math.min(
             anchor.left + 120,
             window.innerWidth - 440
-          )
+          ),
+          // Transición suave para que el cambio de fila no sea brusco
+          transition: 'top 0.2s ease-out, left 0.2s ease-out'
         }}
         onMouseEnter={() => clearTimeout(hoverTimerRef.current)}
         onMouseLeave={() => setGhostItem(null)}
       >
-
         {/* HEADER */}
         <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -1158,43 +1267,36 @@ export default function InfoTabs({
         </div>
 
         {/* BODY */}
-        <div className="p-3 space-y-2  text-[11px]">
-
+        <div className="p-3 space-y-2 text-[11px]">
           {/* INFO BÁSICA */}
           <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 space-y-2">
             <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
               Información básica
             </span>
-
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-slate-600">
               <GhostRow label="Código" value={item.cod} />
               <GhostRow label="Proveedor" value={item.pro} />
               <GhostRow label="Unidad" value={item.tde} />
               <GhostRow label="Cantidad" value={item.can} />
             </div>
-
             <div>
               <div className="grid grid-cols-[90px_1fr] gap-2 items-start">
                 <span className="text-[10px] uppercase text-slate-500 font-bold pt-0.5">
                   Descripción
                 </span>
-
                 <div className="text-xs font-semibold text-slate-700 leading-snug line-clamp-3">
                   {item.des}
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* COSTOS */}
+          {/* COSTOS Y VENTA */}
           <div className="grid grid-cols-2 gap-2">
-
             <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 space-y-2">
               <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
                 Costos
               </span>
-
               <GhostRow label="Costo" value={item.puc} />
               <GhostRow label="Utilidad" value={item.tou} />
               <GhostRow label="Porcentaje" value={item.cau + "%"} />
@@ -1204,19 +1306,14 @@ export default function InfoTabs({
               <span className="text-[10px] font-black text-[#0d767e] uppercase tracking-tight">
                 Venta
               </span>
-
               <GhostRow label="Costo total" value={item.toc} />
               <GhostRow label="Precio venta" value={item.val} />
-              <GhostRow
-                label="Venta total"
-                value={item.tot}
-                highlight
-              />
+              <GhostRow label="Venta total" value={item.tot} highlight />
             </div>
-
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
@@ -1286,6 +1383,16 @@ export default function InfoTabs({
         anchor: e.currentTarget.getBoundingClientRect(),
       });
     }, 600);
+  }
+
+  function handleGhostLeave() {
+    // Limpiamos el timer de apertura por si acaso
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
+    // Cerramos el preview (puedes darle 100ms de delay para que dé tiempo a entrar al modal)
+    hoverTimerRef.current = setTimeout(() => {
+      setGhostItem(null);
+    }, 100);
   }
 
   // 10. Multi Select + Atajos
@@ -1518,20 +1625,6 @@ export default function InfoTabs({
     });
   };
 
-  useEffect(() => {
-    if (!gruposCalculados.length) return;
-
-    const ultimoGrupo = gruposCalculados[gruposCalculados.length - 1];
-    if (!ultimoGrupo?.items?.length) return;
-
-    const ultimoItem = ultimoGrupo.items[ultimoGrupo.items.length - 1];
-
-    if (ultimoItem?.id) {
-      triggerHighlight(ultimoItem.id);
-      setTimeout(() => scrollToRow(ultimoItem.id), 120);
-    }
-  }, [gruposCalculados]);
-
   // =======================
   // TABLA SERVICIOS
   // =======================
@@ -1748,8 +1841,6 @@ export default function InfoTabs({
     }, 600);
   };
 
-
-
   // =========
   // GESTIÓN
   // =========
@@ -1765,6 +1856,8 @@ export default function InfoTabs({
       reporteServicios: true,
       reporteDetallado: true,
       reporteResumen: true,
+      reporteVentaTotal: true,
+      reporteVentaParcial: true,
       generarCopia: true,
       generarNuevaVersion: true,
       eliminar: true,
@@ -1785,6 +1878,8 @@ export default function InfoTabs({
       reporteServicios: true,
       reporteDetallado: true,
       reporteResumen: true,
+      reporteVentaTotal: false,
+      reporteVentaParcial: true,
       generarCopia: true,
       generarNuevaVersion: true,
       eliminar: true,
@@ -1805,6 +1900,8 @@ export default function InfoTabs({
       reporteServicios: true,
       reporteDetallado: true,
       reporteResumen: true,
+      reporteVentaTotal: false,
+      reporteVentaParcial: true,
       generarCopia: true,
       generarNuevaVersion: true,
       eliminar: true,
@@ -1823,6 +1920,8 @@ export default function InfoTabs({
       reporteServicios: true,
       reporteDetallado: true,
       reporteResumen: true,
+      reporteVentaTotal: false,
+      reporteVentaParcial: true,
       generarCopia: true,
       generarNuevaVersion: true,
       eliminar: true,
@@ -1980,34 +2079,35 @@ export default function InfoTabs({
       > 
 
         <TabsList
-          className={`grid ${gridCols} gap-2 mb-6 bg-slate-50 border border-slate-200 rounded-[2rem] p-1.5 shadow-inner shadow-slate-200/50`}
+          className={`grid ${gridCols} gap-2 mb-6 bg-gradient-to-r from-white via-slate-50/70 to-white border border-slate-200 rounded-2xl p-2 shadow-sm`}
         >
           {/* REPETIR ESTA ESTRUCTURA PARA CADA TABS-TRIGGER */}
           {activeTabs.includes("datos") && (
             <TabsTrigger
               value="datos"
               className="
+                group
                 flex items-center justify-center gap-2
                 h-10 sm:h-11
                 px-4 sm:px-6
                 text-[11px] font-[1000] uppercase tracking-widest
-                rounded-[1.5rem]
-                transition-all duration-300 ease-in-out
+                rounded-xl
+                transition-all duration-200 ease-out
                 cursor-pointer
                 text-slate-500
-                
-                /* ESTADO ACTIVO: Siguiendo la línea Teal-50 de la Sidebar */
+                bg-transparent
+                border border-transparent
+
+                hover:bg-white/80 hover:text-slate-700 hover:border-slate-200
+
                 data-[state=active]:bg-white
                 data-[state=active]:text-[#0d767e]
-                data-[state=active]:shadow-md
-                data-[state=active]:shadow-teal-100/40
-                data-[state=active]:border-teal-100
-                
-                /* HOVER NO ACTIVO */
-                hover:bg-slate-100/80
-                hover:text-slate-700
+                data-[state=active]:shadow-sm
+                data-[state=active]:shadow-teal-100/60
+                data-[state=active]:border-[#0d767e]/25
               "
             >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 group-data-[state=active]:bg-[#0d767e] group-data-[state=active]:shadow-[0_0_12px_rgba(13,118,126,0.35)] transition-colors" />
               <FolderClosed className="w-3.5 h-3.5" /> 
               <span className="hidden sm:inline">Datos</span>
             </TabsTrigger>
@@ -2016,8 +2116,29 @@ export default function InfoTabs({
           {activeTabs.includes("suministros") && (
             <TabsTrigger
               value="suministros"
-              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-6 text-[11px] font-[1000] uppercase tracking-widest rounded-[1.5rem] transition-all duration-300 ease-in-out text-slate-500 data-[state=active]:bg-white data-[state=active]:text-[#0d767e] data-[state=active]:shadow-md data-[state=active]:shadow-teal-100/40 hover:bg-slate-100/80"
+              className="
+                group
+                flex items-center justify-center gap-2
+                h-10 sm:h-11
+                px-4 sm:px-6
+                text-[11px] font-[1000] uppercase tracking-widest
+                rounded-xl
+                transition-all duration-200 ease-out
+                cursor-pointer
+                text-slate-500
+                bg-transparent
+                border border-transparent
+
+                hover:bg-white/80 hover:text-slate-700 hover:border-slate-200
+
+                data-[state=active]:bg-white
+                data-[state=active]:text-[#0d767e]
+                data-[state=active]:shadow-sm
+                data-[state=active]:shadow-teal-100/60
+                data-[state=active]:border-[#0d767e]/25
+              "
             >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 group-data-[state=active]:bg-[#0d767e] group-data-[state=active]:shadow-[0_0_12px_rgba(13,118,126,0.35)] transition-colors" />
               <Files className="w-3.5 h-3.5" /> 
               <span className="hidden sm:inline">Suministros</span>
             </TabsTrigger>
@@ -2026,8 +2147,29 @@ export default function InfoTabs({
           {activeTabs.includes("servicios") && (
             <TabsTrigger
               value="servicios"
-              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-6 text-[11px] font-[1000] uppercase tracking-widest rounded-[1.5rem] transition-all duration-300 ease-in-out text-slate-500 data-[state=active]:bg-white data-[state=active]:text-[#0d767e] data-[state=active]:shadow-md data-[state=active]:shadow-teal-100/40 hover:bg-slate-100/80"
+              className="
+                group
+                flex items-center justify-center gap-2
+                h-10 sm:h-11
+                px-4 sm:px-6
+                text-[11px] font-[1000] uppercase tracking-widest
+                rounded-xl
+                transition-all duration-200 ease-out
+                cursor-pointer
+                text-slate-500
+                bg-transparent
+                border border-transparent
+
+                hover:bg-white/80 hover:text-slate-700 hover:border-slate-200
+
+                data-[state=active]:bg-white
+                data-[state=active]:text-[#0d767e]
+                data-[state=active]:shadow-sm
+                data-[state=active]:shadow-teal-100/60
+                data-[state=active]:border-[#0d767e]/25
+              "
             >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 group-data-[state=active]:bg-[#0d767e] group-data-[state=active]:shadow-[0_0_12px_rgba(13,118,126,0.35)] transition-colors" />
               <User className="w-3.5 h-3.5" /> 
               <span className="hidden sm:inline">Servicios</span>
             </TabsTrigger>
@@ -2036,10 +2178,62 @@ export default function InfoTabs({
           {activeTabs.includes("gestion") && (
             <TabsTrigger
               value="gestion"
-              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-6 text-[11px] font-[1000] uppercase tracking-widest rounded-[1.5rem] transition-all duration-300 ease-in-out text-slate-500 data-[state=active]:bg-white data-[state=active]:text-[#0d767e] data-[state=active]:shadow-md data-[state=active]:shadow-teal-100/40 hover:bg-slate-100/80"
+              className="
+                group
+                flex items-center justify-center gap-2
+                h-10 sm:h-11
+                px-4 sm:px-6
+                text-[11px] font-[1000] uppercase tracking-widest
+                rounded-xl
+                transition-all duration-200 ease-out
+                cursor-pointer
+                text-slate-500
+                bg-transparent
+                border border-transparent
+
+                hover:bg-white/80 hover:text-slate-700 hover:border-slate-200
+
+                data-[state=active]:bg-white
+                data-[state=active]:text-[#0d767e]
+                data-[state=active]:shadow-sm
+                data-[state=active]:shadow-teal-100/60
+                data-[state=active]:border-[#0d767e]/25
+              "
             >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 group-data-[state=active]:bg-[#0d767e] group-data-[state=active]:shadow-[0_0_12px_rgba(13,118,126,0.35)] transition-colors" />
               <Cog className="w-3.5 h-3.5" /> 
               <span className="hidden sm:inline">Gestión</span>
+            </TabsTrigger>
+          )}
+
+          {activeTabs.includes("oportunidades") && (
+            <TabsTrigger
+              value="oportunidades"
+              className="
+                group
+                flex items-center justify-center gap-2
+                h-10 sm:h-11
+                px-4 sm:px-6
+                text-[11px] font-[1000] uppercase tracking-widest
+                rounded-xl
+                transition-all duration-200 ease-out
+                cursor-pointer
+                text-slate-500
+                bg-transparent
+                border border-transparent
+
+                hover:bg-white/80 hover:text-slate-700 hover:border-slate-200
+
+                data-[state=active]:bg-white
+                data-[state=active]:text-[#0d767e]
+                data-[state=active]:shadow-sm
+                data-[state=active]:shadow-teal-100/60
+                data-[state=active]:border-[#0d767e]/25
+              "
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 group-data-[state=active]:bg-[#0d767e] group-data-[state=active]:shadow-[0_0_12px_rgba(13,118,126,0.35)] transition-colors" />
+              <FolderClosed className="w-3.5 h-3.5" /> 
+              <span className="hidden sm:inline">Oportunidades</span>
             </TabsTrigger>
           )}
 
@@ -2049,12 +2243,12 @@ export default function InfoTabs({
               flex items-center justify-center gap-2
               h-10 sm:h-11
               px-5 sm:px-7
-              text-sm font-black uppercase tracking-[0.15em]
-              rounded-[1.5rem]
-              bg-green-50 text-green-700
-              border border-green-100/50
-              shadow-sm shadow-green-200/20
-              ml-auto
+              text-sm font-black uppercase tracking-[0.12em]
+              rounded-xl
+              bg-green-50/70 text-green-800
+              border border-green-100/70
+              shadow-sm shadow-green-100/30
+              ml-auto backdrop-blur
             "
             title="Total general de la cotización"
           >
@@ -2068,10 +2262,46 @@ export default function InfoTabs({
         {/* DATOS */}
         {activeTabs.includes("datos") && (
           <TabsContent value="datos" className="space-y-3">
-            <CardContent className="px-0 -mt-5 pb-1 mb-3">
+            <CardContent className="px-1 -mt-5 pb-1 mb-3">
               
               {/* SECCIÓN SUPERIOR: DATOS GENERALES */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="space-y-3">
+
+              {/* HEADER OPERATIVO */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Cotización</p>
+              <p className="text-sm font-black text-gray-800 flex items-center gap-2">
+              {data.numero || "Generando..."}
+              {data.numero?.trim()
+              ? <Check className="w-4 h-4 text-green-500"/>
+              : <Loader className="w-4 h-4 text-gray-400 animate-spin"/>}
+              </p>
+              </div>
+
+              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Cliente</p>
+              <p className="text-sm font-black text-gray-800 truncate">
+              {clientes.find(c => c.codigo === data.cliente_codigo)?.nombre || "Seleccionar"}
+              </p>
+              </div>
+
+              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Probabilidad</p>
+              <p className="text-sm font-black text-indigo-600">
+              {data.prob || 0} %
+              </p>
+              </div>
+
+              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Total</p>
+              <p className="text-sm font-black text-green-700">
+              {data.tot_c ? formatMoney(data.tot_c) : "-"}
+              </p>
+              </div>
+
+              </div>
 
                 {/* COLUMNA IZQUIERDA: IDENTIFICACIÓN Y CLIENTE */}
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-xs space-y-2">
@@ -2210,7 +2440,7 @@ export default function InfoTabs({
 
                   <div className="grid grid-cols-2 gap-2 border-t border-gray-100 pt-2">
                     <SelectField id="prob" inline size="sm" label="Probabilidad:*" value={data.prob || ""} onChange={(e) => handleFieldChange("prob", e.target.value)} options={probOptions} disabled={isReadOnly} className={campoError === "prob" ? "border-red-500" : ""} />
-                    <InputField inline size="sm" label="Total Cotzacion:" value={data.tot_c ? `${Number(data.tot_c).toFixed(2)}` : "-"} readOnly className="font-bold text-gray-900" />
+                    <InputField inline size="sm" label="Total Cotizacion:" value={data.tot_c ? formatMoney(data.tot_c) : "-"} readOnly className="font-bold text-gray-900" />
                   </div>
                 </div>
 
@@ -2219,6 +2449,23 @@ export default function InfoTabs({
                   <div className="grid grid-cols-2 gap-2">
                     <SelectField id="cotit" inline size="sm" label="Tipo Cotización:*" value={data.cotit || ""} onChange={(e) => handleFieldChange("cotit", e.target.value)} disabled={isReadOnly} options={tipoOptions} className={campoError === "cotit" ? "border-red-500" : ""} />
                     <SelectField id="area_codigo" inline size="sm" label="Área:" value={data.area_codigo || ""} onChange={(e) => handleFieldChange("area_codigo", e.target.value)} disabled={isReadOnly} options={areasOptions} />
+                    {/* SECCIÓN DE LOGÍSTICA DE VENTA */}
+                    {data.cotit === "V" && (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                        <SelectField
+                          id="tven"
+                          inline
+                          size="sm"
+                          label="Tipo Venta:*"
+                          value={data.tven || ""}
+                          onChange={(e) => handleFieldChange("tven", e.target.value)}
+                          disabled={isReadOnly}
+                          options={tipoVentaOptions}
+                          placeholder="-- SELECCIONE TIPO --"
+                          className={`bg-blue-50/50 ${campoError === "tven" ? "border-red-500" : ""}`}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -2269,7 +2516,14 @@ export default function InfoTabs({
                       <h4 className="text-xs font-black text-cyan-700 uppercase tracking-tight">Área Comercial</h4>
                     </div>
                     {!isReadOnly && (
-                      <button type="button" onClick={() => setOpenContactos(true)} className="p-1 hover:bg-white/50 rounded-full transition-colors text-cyan-600">
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setTipoModal("comercial"); // Estado para saber qué estamos editando
+                          setOpenContactos(true);
+                        }} 
+                        className="p-1 hover:bg-white/50 rounded-full transition-colors text-cyan-600"
+                      >
                         <ChevronsRight className="w-4 h-4" />
                       </button>
                     )}
@@ -2323,8 +2577,8 @@ export default function InfoTabs({
                     <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-50">
                       <InputField inline size="sm" label="Telf." value={data.telec || ""} readOnly className="bg-gray-50/50" />
                       <InputField inline size="sm" label="Email" value={data.mailc || ""} readOnly className="bg-gray-50/50" />
-                      <InputField inline size="sm" label="Móvil 1" value={data.mov1c || ""} readOnly className="bg-gray-50/50" />
-                      <InputField inline size="sm" label="Móvil 2" value={data.mov2c || ""} readOnly className="bg-gray-50/50" />
+                      {/*<InputField inline size="sm" label="Móvil 1" value={data.mov1c || ""} readOnly className="bg-gray-50/50" />*/}
+                      {/*<InputField inline size="sm" label="Móvil 2" value={data.mov2c || ""} readOnly className="bg-gray-50/50" />*/}
                     </div>
                   </div>
                 </div>
@@ -2337,7 +2591,11 @@ export default function InfoTabs({
                       <h4 className="text-xs font-black text-teal-700 uppercase tracking-tight">Soporte Técnico</h4>
                     </div>
                     {!isReadOnly && (
-                      <button type="button" onClick={() => setOpenContactos(prev => ({ ...prev, tecnico: true }))} className="p-1 hover:bg-white/50 rounded-full transition-colors text-teal-600">
+                      <button 
+                        type="button" 
+                        onClick={() => setOpenContactos(prev => ({ ...prev, tecnico: true }))} 
+                        className="p-1 hover:bg-white/50 rounded-full transition-colors text-teal-600"
+                      >
                         <ChevronsRight className="w-4 h-4" />
                       </button>
                     )}
@@ -2391,8 +2649,8 @@ export default function InfoTabs({
                     <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-50">
                       <InputField inline size="sm" label="Telf." value={data.telet || ""} readOnly className="bg-gray-50/50" />
                       <InputField inline size="sm" label="Email" value={data.mailt || ""} readOnly className="bg-gray-50/50 font-medium" />
-                      <InputField inline size="sm" label="Móvil 1" value={data.mov1t || ""} readOnly className="bg-gray-50/50" />
-                      <InputField inline size="sm" label="Móvil 2" value={data.mov2t || ""} readOnly className="bg-gray-50/50" />
+                      {/*<InputField inline size="sm" label="Móvil 1" value={data.mov1t || ""} readOnly className="bg-gray-50/50" />*/}
+                      {/*<InputField inline size="sm" label="Móvil 2" value={data.mov2t || ""} readOnly className="bg-gray-50/50" />*/}
                     </div>
                   </div>
                 </div>
@@ -2404,8 +2662,8 @@ export default function InfoTabs({
 
         {/* SUMINISTROS */}
         {activeTabs.includes("suministros") && (
-          <TabsContent value="suministros" className="mt-0 outline-none">
-            <CardContent className="p-0 border-none shadow-none">
+          <TabsContent value="suministros" className="space-y-3">
+            <CardContent className="px-1 -mt-5 pb-1 mb-3">
               <div className="overflow-x-auto rounded-md border border-slate-300 shadow-md">
                 <table className="min-w-full table-fixed text-[11px] tabular-nums border-collapse">
                   
@@ -2447,7 +2705,7 @@ export default function InfoTabs({
                       <th className="w-[145px] py-1 border-r border-slate-300 text-cente">Proveedor</th>
                       <th className="w-14 py-1 border-r border-slate-300 text-center">U.M.</th>
                       <th className="w-14 py-1 border-r border-slate-300 text-center">Cant</th>
-                      <th className="w-24 py-1 border-r border-slate-300 text-center">Valor Unit</th>
+                      <th className="w-24 py-1 border-r border-slate-300 text-center">Valor</th>
                       <th className="w-24 py-1 border-r border-slate-300 text-center ">Total</th>
                       <th className="w-10 py-1 border-r border-slate-300 text-center italic"></th>
                     </tr>
@@ -2594,7 +2852,8 @@ export default function InfoTabs({
                                     setGrupoActivo={setGrupoActivo}
                                     setItemActivo={setItemActivo}
                                     setOpenItemModal={setOpenItemModal}
-                                    handleGhostEnter={handleGhostEnter}   // 👈 NUEVO
+                                    handleGhostEnter={handleGhostEnter}
+                                    handleGhostLeave={handleGhostLeave}
                                     hoverTimerRef={hoverTimerRef}
                                     setGhostItem={setGhostItem}
                                     highlightId={highlightId}
@@ -2673,8 +2932,8 @@ export default function InfoTabs({
 
         {/* SERVICIOS */}
         {activeTabs.includes("servicios") && (
-          <TabsContent value="servicios" className="mt-0 outline-none">
-            <CardContent className="p-0 border-none shadow-none">
+          <TabsContent value="servicios" className="space-y-3">
+            <CardContent className="px-1 -mt-5 pb-1 mb-3">
               <div className="overflow-x-auto rounded-md border border-slate-300 shadow-md">
                 <table className="min-w-full table-fixed text-[11px] tabular-nums border-collapse">
                   
@@ -2713,7 +2972,7 @@ export default function InfoTabs({
                       <th className="py-1 border-r border-slate-300 text-left px-3">Descripción / Detalle</th>
                       <th className="w-[120px] py-1 border-r border-slate-300 text-center">Dias</th>
                       <th className="w-14 py-1 border-r border-slate-300 text-center">Cant</th>
-                      <th className="w-24 py-1 border-r border-slate-300 text-center">Valor Unit</th>
+                      <th className="w-24 py-1 border-r border-slate-300 text-center">Valor</th>
                       <th className="w-24 py-1 border-r border-slate-300 text-center">Total</th>
                       <th className="w-10 py-1 text-center"></th>
                     </tr>
@@ -2829,10 +3088,10 @@ export default function InfoTabs({
                                       {item.can}
                                     </td>
                                     <td className="px-2 py-1 text-slate-700 border-r border-slate-100 text-right pr-3 font-medium">
-                                      {Number(item.val).toFixed(2)}
+                                      {item.val ? formatMoney(item.val) : "0.00"}
                                     </td>
                                     <td className="px-2 py-1 text-slate-900 border-r border-slate-100 text-right pr-3 font-black bg-slate-50/50">
-                                      {Number(item.tot).toFixed(2)}
+                                      {item.tot ? formatMoney(item.tot) : "0.00"}
                                     </td>
                                     <td className="px-1 py-1 text-center">
                                       <button onClick={() => handleEliminarItemServicio(servicio.id, sub.id, item.num)} className="p-1 text-slate-300 hover:text-red-600 transition-colors">
@@ -2890,8 +3149,8 @@ export default function InfoTabs({
 
         {/* GESTIÓN */}
         {activeTabs.includes("gestion") && (
-          <TabsContent value="gestion" className="space-y-4 animate-in fade-in-50 duration-300">
-            <CardContent className="p-4 space-y-9 bg-slate-50/50 rounded-xl">
+          <TabsContent value="gestion" className="space-y-3">
+            <CardContent className="px-1 -mt-5 pb-1 mb-3">
 
               {/* SECCIÓN: ADICIONALES */}
               <div className="group">
@@ -2958,11 +3217,17 @@ export default function InfoTabs({
                     {acciones.reporteDetallado && (
                       <ButtonAction onClick={onReporteDetallado} color="amber" icon={<FileText size={18} />} text="Reporte Detallado de Cotización" />
                     )}
-
                     {acciones.reporteResumen && (
                       <ButtonAction onClick={onReporteResumen} color="red" icon={<FileText size={18} />} text="Reporte de Resumen" />
                     )}
+                    {acciones.reporteVentaTotal && (
+                      <ButtonAction onClick={onReporteVentaTotal} color="red" icon={<FileText size={18} />} text="Reporte Venta Total" />
+                    )}
+                    {acciones.reporteVentaParcial && (
+                      <ButtonAction onClick={onReporteVentaParcial} color="red" icon={<FileText size={18} />} text="Reporte Venta Parcial" />
+                    )}
                   </div>
+
                 </div>
               </div>
 
@@ -3008,6 +3273,194 @@ export default function InfoTabs({
           </TabsContent>
         )}
 
+        {/* OPORTUNIDADES */}
+        {activeTabs.includes("oportunidades") && (
+          <TabsContent value="oportunidades" className="space-y-3">
+            <CardContent className="px-1 -mt-5 pb-1 mb-3">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                
+                {/* COLUMNA IZQUIERDA: DETALLES DE LA SOLICITUD */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-xs space-y-2">
+                  <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-1">
+                    <Search className="w-4 h-4 text-indigo-500" />
+                    <span className="font-black text-gray-700 uppercase italic">Identificación</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField
+                      inline
+                      size="sm"
+                      label="ID Oportunidad:"
+                      value={data?.oportunidad_codigo || "AUTO-GEN"}
+                      readOnly
+                      className="bg-gray-50 font-mono text-indigo-600"
+                    />
+                    <InputField
+                      id="fecha_recepcion"
+                      inline
+                      size="sm"
+                      label="Recepción:*"
+                      type="date"
+                      value={data.fecha_recepcion || ""}
+                      onChange={(e) => handleFieldChange("fecha_recepcion", e.target.value)}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+
+                  <InputField
+                    id="descripcion_oportunidad"
+                    inline
+                    size="sm"
+                    label="Descripción:*"
+                    as="textarea"
+                    rows={3}
+                    placeholder="¿En qué consiste la oportunidad?"
+                    value={data.descripcion_oportunidad || ""}
+                    onChange={(e) => handleFieldChange("descripcion_oportunidad", e.target.value)}
+                    readOnly={isReadOnly}
+                    className="resize-none"
+                  />
+
+                  <SelectField
+                    id="cliente_codigo"
+                    inline
+                    size="sm"
+                    label="Cliente:*"
+                    value={data.cliente_codigo || ""}
+                    onChange={(e) => handleFieldChange("cliente_codigo", e.target.value)}
+                    options={clientes.map(c => ({ id: c.codigo, nombre: c.nombre }))}
+                    disabled={isReadOnly}
+                  />
+
+                  <InputField
+                    inline
+                    size="sm"
+                    label="Contacto:"
+                    placeholder="Nombre del contacto directo"
+                    value={data.contacto_nombre || ""}
+                    onChange={(e) => handleFieldChange("contacto_nombre", e.target.value)}
+                    readOnly={isReadOnly}
+                  />
+                </div>
+
+                {/* COLUMNA DERECHA: SEGUIMIENTO Y TIEMPOS */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-xs space-y-2">
+                  <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-1">
+                    <CalendarDays className="w-4 h-4 text-orange-500" />
+                    <span className="font-black text-gray-700 uppercase italic">Seguimiento</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <SelectField
+                      id="tipo_oportunidad"
+                      inline
+                      size="sm"
+                      label="Tipo:"
+                      value={data.tipo_oportunidad || ""}
+                      onChange={(e) => handleFieldChange("tipo_oportunidad", e.target.value)}
+                      options={[
+                        { id: "VENTA", nombre: "VENTA" },
+                        { id: "SERVICIO", nombre: "SERVICIO" },
+                        { id: "PROYECTO", nombre: "PROYECTO" }
+                      ]}
+                      disabled={isReadOnly}
+                    />
+                    <SelectField
+                      id="estado_oportunidad"
+                      inline
+                      size="sm"
+                      label="Estado:*"
+                      value={data.estado_oportunidad || "PENDIENTE"}
+                      onChange={(e) => handleFieldChange("estado_oportunidad", e.target.value)}
+                      options={[
+                        { id: "PENDIENTE", nombre: "PENDIENTE" },
+                        { id: "COTIZADO", nombre: "COTIZADO" },
+                        { id: "NO COTIZADO", nombre: "NO COTIZADO" },
+                        { id: "RECHAZADA", nombre: "RECHAZADA" }
+                      ]}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField
+                      id="fecha_visita"
+                      inline
+                      size="sm"
+                      label="Visita Técnica:"
+                      type="date"
+                      value={data.fecha_visita || ""}
+                      onChange={(e) => handleFieldChange("fecha_visita", e.target.value)}
+                      readOnly={isReadOnly}
+                    />
+                    <InputField
+                      id="fecha_limite"
+                      inline
+                      size="sm"
+                      label="Fecha Límite:*"
+                      type="date"
+                      value={data.fecha_limite || ""}
+                      onChange={(e) => handleFieldChange("fecha_limite", e.target.value)}
+                      readOnly={isReadOnly}
+                      className="text-red-600 font-bold"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-50">
+                    <InputField
+                      id="comentarios_oportunidad"
+                      inline
+                      size="sm"
+                      label="Comentarios:"
+                      as="textarea"
+                      rows={2}
+                      value={data.comentarios_oportunidad || ""}
+                      onChange={(e) => handleFieldChange("comentarios_oportunidad", e.target.value)}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
+                    <InputField
+                      inline
+                      size="sm"
+                      label="Coti. Ref:"
+                      placeholder="Código de cotización generada"
+                      value={data.codigo_cotizacion_ref || ""}
+                      onChange={(e) => handleFieldChange("codigo_cotizacion_ref", e.target.value)}
+                      readOnly={isReadOnly}
+                      className="font-bold text-blue-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN: RESPONSABLE COMERCIAL (Reutilizando tu estilo) */}
+              <div className="mt-4 bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-300 via-indigo-100 to-white px-4 py-2 flex justify-between items-center border-b border-indigo-100">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-indigo-700" />
+                    <h4 className="text-xs font-black text-indigo-700 uppercase">Responsable Comercial</h4>
+                  </div>
+                </div>
+                <div className="p-3">
+                  <SelectField
+                    id="responsable_comercial"
+                    inline
+                    size="sm"
+                    label="Asignado a:"
+                    value={data.responsable_comercial || ""}
+                    onChange={(e) => handleFieldChange("responsable_comercial", e.target.value)}
+                    options={comercialesOptions} // Asumiendo que tienes esta lista
+                    disabled={isReadOnly}
+                  />
+                </div>
+              </div>
+
+            </CardContent>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

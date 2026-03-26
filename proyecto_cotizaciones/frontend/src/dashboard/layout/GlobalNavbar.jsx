@@ -11,9 +11,14 @@ import {
   User
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import NotificationDropdown from "../../components/notificaciones/NotificationDropdown";
 
 export default function GlobalNavbar({ sidebarOpen, setSidebarOpen, user }) {
   const [openUser, setOpenUser] = useState(false);
+  const [openNotif, setOpenNotif] = useState(false);
+
+  const [notificaciones, setNotificaciones] = useState([]); 
+  const [loading, setLoading] = useState(false);
 
   return (
     <header className="h-11 flex items-center justify-between px-3 bg-white border-b border-slate-100 z-[100] shrink-0">
@@ -96,11 +101,27 @@ export default function GlobalNavbar({ sidebarOpen, setSidebarOpen, user }) {
         {/* ICONOS */}
         <div className="hidden md:flex items-center gap-1 border-r border-slate-200 pr-2 mr-2">
 
-          {/* NOTIFICACIONES ERP */}
-          <button className="relative p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition">
-            <Bell size={16} />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-500 rounded-full" />
-          </button>
+          {/* CONTENEDOR ANCLA: Aquí es donde sucede la magia del posicionamiento */}
+          <div className="relative inline-block">
+            
+            {/* NOTIFICACIONES ERP */}
+            <button
+              onClick={() => setOpenNotif(!openNotif)}
+              className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition"
+            >
+              <Bell size={16} />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-500 rounded-full" />
+            </button>
+
+            {/* DROPDOWN: Ahora es hijo del div 'relative', por lo que 'right-0' se alineará con la campana */}
+            {openNotif && (
+              <NotificationDropdown 
+                  onClose={() => setOpenNotif(false)} 
+                  notificaciones={notificaciones} // Asegúrate de pasar estas props
+                  loading={loading}
+              />
+            )}
+          </div>
 
           <button className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-cyan-600 rounded-md transition">
             <HelpCircle size={16} />

@@ -51,6 +51,45 @@ export const getEnvioLabel = (envio) =>
   envioMap[envio] || "Sin estado";
 
 /* ===========================================================
+   DASHBOARD 2 — OPORTUNIDADES
+   =========================================================== */
+
+export const OPORTUNDAD_STATE_CLASSES = {
+  0: "bg-red-200 text-red-800",
+  1: "bg-yellow-200 text-yellow-800",
+  2: "bg-sky-200 text-sky-800",
+  3: "bg-green-200 text-green-800",
+};
+
+export const OPORTUNDAD_STATE_COLORS = {
+  0: "#ff0505",
+  1: "#fce005",
+  2: "#0ea5e9",
+  3: "#22c55e",
+};
+
+export const OPORTUNDAD_STATE_MAP = {
+  0: "Pendiente",
+  1: "No Cotizado",
+  2: "Rechazado",
+  3: "Enviado",
+};
+
+// Helpers
+export function getOportunidadNombre(code) {
+  if (code === null || code === undefined) return "Sin estado";
+  return OPORTUNDAD_STATE_CLASSES[code] || "Desconocido";
+}
+
+export function getOportunidadColor(code) {
+  return OPORTUNDAD_STATE_COLORS[code] || "#d1d5db";
+}
+
+export function getOportunidadClass(code) {
+  return OPORTUNDAD_STATE_MAP[code] || "bg-gray-200 text-gray-800";
+}
+
+/* ===========================================================
    DASHBOARD 2 — PROBABILIDAD
    =========================================================== */
 

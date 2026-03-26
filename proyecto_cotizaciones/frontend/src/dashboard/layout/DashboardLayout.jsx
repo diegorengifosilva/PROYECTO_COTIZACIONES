@@ -1,16 +1,9 @@
 // src/dashboard/layout/DashboardLayout.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import {
-  FileText,
-  BarChart2,
-  LogOut,
-  Menu,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  PanelLeftClose,
-  PanelLeftOpen,
+import { 
+  FileText, BarChart2, LogOut, Menu, X, ChevronDown, PanelLeftClose, 
+  ChevronRight, Settings, Database, Tags, Package, PieChart 
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import api from "@/services/api"; // tu servicio de API
@@ -23,10 +16,23 @@ const SIDEBAR_ITEMS = [
     section: "Cotizaciones",
     items: [
       { to: "/dashboard/cotizaciones-home", label: "Cotizaciones Home", icon: FileText },
-      //{ to: "/dashboard/cotizaciones", label: "Cotizaciones", icon: FileText },
-      //{ to: "/dashboard/revision-cotizacion", label: "Revisión Cotización", icon: FileText },
       { to: "/dashboard/aprobacion-cotizacion", label: "Aprobación Cotización", icon: FileText },
-      //{ to: "/dashboard/seguimiento-cotizaciones", label: "Seguimiento Cotizaciones", icon: BarChart2 },
+    ],
+  },
+  {
+    section: "Configuración",
+    items: [
+      {
+        label: "Tablas",
+        icon: Settings,
+        isCollapsible: true,
+        subItems: [
+          { to: "/dashboard/tablas/estructura", label: "Estructura y Comercial", icon: Database },
+          { to: "/dashboard/tablas/parametros", label: "Parámetros de Ventas", icon: Tags },
+          { to: "/dashboard/tablas/catalogo", label: "Catálogo de Marcas", icon: Package },
+          { to: "/dashboard/tablas/gastos", label: "Gastos y Análisis", icon: PieChart },
+        ],
+      },
     ],
   },
 ];
@@ -58,6 +64,55 @@ const SidebarLink = ({ to, label, icon: Icon, collapsed, onClick }) => {
         </span>
       )}
     </NavLink>
+  );
+};
+
+const CollapsibleSidebarItem = ({ label, icon: Icon, subItems, onClickMobile }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+
+  // Verificar si algún sub-ítem está activo para mantener el acordeón abierto
+  const isChildActive = subItems.some(item => location.pathname === item.to);
+
+  useEffect(() => {
+    if (isChildActive) setIsOpen(true);
+  }, [isChildActive]);
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between px-2 py-1.5 transition-all duration-200 text-sm rounded-md mx-1
+          ${isChildActive ? "text-cyan-700 font-semibold" : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"}`}
+      >
+        <div className="flex items-center gap-3">
+          <Icon size={18} strokeWidth={isChildActive ? 2.5 : 2} />
+          <span className="truncate">{label}</span>
+        </div>
+        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+
+      {isOpen && (
+        <div className="ml-4 pl-4 border-l border-slate-300 space-y-1 mt-1">
+          {subItems.map((sub) => (
+            <NavLink
+              key={sub.to}
+              to={sub.to}
+              onClick={onClickMobile}
+              className={({ isActive }) => `
+                flex items-center gap-3 px-2 py-1.5 rounded-md text-[13px] transition-all
+                ${isActive 
+                  ? "bg-cyan-100/50 text-cyan-700 font-medium" 
+                  : "text-slate-500 hover:bg-slate-200/50 hover:text-slate-800"}
+              `}
+            >
+              <sub.icon size={14} />
+              <span>{sub.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -194,7 +249,7 @@ export default function DashboardLayout() {
             </button>
           </div>
 
-          {/* MENÚ DE NAVEGACIÓN */}
+          {/* MENÚ DE NAVEGACIÓN DENTRO DEL ASIDE */}
           <nav className="flex-1 px-3 py-2 space-y-6 overflow-y-auto no-scrollbar shrink-0">
             {SIDEBAR_ITEMS.map((section) => (
               <div key={section.section} className="mb-4">
@@ -203,12 +258,20 @@ export default function DashboardLayout() {
                 </span>
                 <div className="space-y-0.5">
                   {section.items.map((item) => (
-                    <SidebarLink
-                      key={item.to}
-                      {...item}
-                      collapsed={false}
-                      onClick={() => setMobileOpen(false)}
-                    />
+                    item.isCollapsible ? (
+                      <CollapsibleSidebarItem 
+                        key={item.label}
+                        {...item} 
+                        onClickMobile={() => setMobileOpen(false)}
+                      />
+                    ) : (
+                      <SidebarLink
+                        key={item.to}
+                        {...item}
+                        collapsed={false}
+                        onClick={() => setMobileOpen(false)}
+                      />
+                    )
                   ))}
                 </div>
               </div>
@@ -231,17 +294,6 @@ export default function DashboardLayout() {
       {/* ÁREA DE CONTENIDO (DERECHA) */}
       {/* min-w-0 es vital para que flex-1 funcione con contenidos anchos (tablas) */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        
-        {/* Header móvil (solo visible en pantallas pequeñas) */}
-        <div className="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30 shrink-0">
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 text-slate-600">
-            <Menu size={20} />
-          </button>
-          <span className="text-xs font-bold text-[#0052CC]">V&C SYSTEM</span>
-          <div className="w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-            {user?.nomb_cort_usu?.charAt(0) || "U"}
-          </div>
-        </div>
 
         {/* NAVBAR GLOBAL (Aquí es donde aparecerá el icono de abrir si sidebarOpen es false) */}
         <div className="shrink-0">

@@ -89,36 +89,38 @@ function RegistroItemOtrosModal({ open, onClose, onConfirm, codigoTipoGasto, ite
     let utilidad = toNumber(next.utilidad);
     let porcentaje = toNumber(next.porcentaje);
 
-    // 🔹 Si editan porcentaje → recalcula utilidad
-    if (campoModificado === "porcentaje" && precio > 0) {
-      utilidad = (porcentaje * precio) / 100;
+    // ==========================================
+    // 1️⃣ REGLA DE ORO: EL PORCENTAJE ES EL MASTER
+    // ==========================================
+
+    // Si cambia el PRECIO o cambia el PORCENTAJE -> Recalculamos UTILIDAD
+    if (campoModificado === "precio" || campoModificado === "porcentaje" || campoModificado === null) {
+      utilidad = (precio * porcentaje) / 100;
       next.utilidad = utilidad.toFixed(2);
+    } 
+    
+    // Si el usuario decide forzar una UTILIDAD manual
+    // Recalculamos el porcentaje para que la ficha sea coherente
+    else if (campoModificado === "utilidad") {
+      if (precio > 0) {
+        porcentaje = (utilidad / precio) * 100;
+        next.porcentaje = porcentaje.toFixed(2);
+      }
     }
 
-    // 🔹 Si editan utilidad → recalcula porcentaje
-    if (campoModificado === "utilidad" && precio > 0) {
-      porcentaje = (utilidad / precio) * 100;
-      next.porcentaje = porcentaje.toFixed(2);
-    }
+    // ==========================================
+    // 2️⃣ CÁLCULO DE TOTALES
+    // ==========================================
+    const totalCosto = precio * cantidad;
+    const ventaPrecioUnitario = precio + utilidad;
+    const ventaTotalAcumulada = ventaPrecioUnitario * cantidad;
+    const utilidadTotalAcumulada = utilidad * cantidad;
 
-    // 🔹 Si cambian precio → recalcula porcentaje
-    if (campoModificado === "precio" && precio > 0) {
-      porcentaje = utilidad > 0
-        ? (utilidad / precio) * 100
-        : porcentaje;
-
-      next.porcentaje = porcentaje.toFixed(2);
-    }
-
-    const total = precio * cantidad;
-    const ventaPrecio = precio + utilidad;
-    const ventaTotal = ventaPrecio * cantidad;
-    const utilidadTotal = utilidad * cantidad;
-
-    next.total = total.toFixed(2);
-    next.ventaPrecio = ventaPrecio.toFixed(2);
-    next.ventaTotal = ventaTotal.toFixed(2);
-    next.utilidadTotal = utilidadTotal.toFixed(2);
+    // Seteo de valores con formato de 2 decimales para la UI
+    next.total = totalCosto.toFixed(2);
+    next.ventaPrecio = ventaPrecioUnitario.toFixed(2);
+    next.ventaTotal = ventaTotalAcumulada.toFixed(2);
+    next.utilidadTotal = utilidadTotalAcumulada.toFixed(2);
 
     return next;
   };

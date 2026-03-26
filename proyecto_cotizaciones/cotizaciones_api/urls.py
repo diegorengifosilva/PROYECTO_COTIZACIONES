@@ -31,6 +31,9 @@ urlpatterns = [
     path("cotizaciones/<int:num_reg>/totales-descuento/", views.totales_descuento_view, name="totales_descuento"),
     path("cotizaciones/<int:num_reg>/recalcular-totales/", views.recalcular_totales_cotizacion, name="recalcular_totales_cotizacion"),
 
+    # OPORTUNIDADES
+    path('cotizaciones/oportunidades', views.oportunidades_dashboard_view, name="oportunidades_dashboard_view"),
+
     # BUSQUEDA
     path('clientes/<str:empresa>/encargados/', views.buscar_encargados_por_empresa, name='buscar_encargados_por_empresa'),
 
@@ -54,16 +57,31 @@ urlpatterns = [
     path("cotizaciones/<str:num_reg>/pdf-context/", views.cotizacion_pdf_context, name="cotizacion_pdf_context"),
     path("cotizaciones/<str:num_reg>/pdf-preview/", views.cotizacion_pdf_preview, name="cotizacion_pdf_preview"),
     path("cotizaciones/<str:num_reg>/pdf/", views.cotizacion_pdf, name="cotizacion_pdf",),
+    path('cotizaciones/<str:num_reg>/reporte-html/', views.cotizacion_reporte_html, name='cotizacion_reporte_html'),
+    path('cotizacion/word/<str:num_reg>/', views.descargar_cotizacion_word, name='descargar_cotizacion_word'),
     path("cotizaciones/<str:num_reg>/descuento/", views.descuento_cotizacion, name="obtener_descuento_cotizacion"),
 
     # OBJETIVOS
     path("dashboard/objetivos/", views.objetivos_anuales, name="objetivos_anuales"),
     path("dashboard/logrado/", views.logrado_dashboard, name="logrado_dashboard"),
+    path("dashboard/kpis/", views.kpis_dashboard, name="kpis_dashboard"),
+    path("dashboard/tendencias/", views.tendencias_dashboard, name="tendencias_dashboard"),
     path("dashboard/analisis/", views.cotizaciones_analisis_view, name="cotizaciones-analisis"),
+
+    # NOTIFICACIONES
+    path("notificaciones/", views.notificaciones_usuario, name="notificaciones_usuario"),
+    path("notificaciones/<int:pk>/marcar/", views.marcar_notificacion, name="marcar_notificacion"),
+    path("notificaciones/marcar-todas/", views.marcar_todas_notificaciones, name="marcar_todas_notificaciones"),
+    path("notificaciones/no-leidas/", views.notificaciones_no_leidas, name="notificaciones_no_leidas"),
+
+    # ALERTAS
+    path("alertas/generar/", views.generar_alertas, name="generar_alertas"),
 
     # DB_VC
     path("cotizaciones/areas/", views.lista_areas, name="lista_areas"),
+    path("cotizaciones/cargos/", views.lista_cargos, name="lista_cargos"),
     path("cotizaciones/clientes/", views.lista_clientes, name="lista_clientes"),
+    path("cotizaciones/representantes/", views.lista_representantes, name="lista_representantes"),
     path("cotizaciones/estados/", views.lista_estados, name="lista_estados"),
     path("cotizaciones/proveedores/", views.lista_proveedores, name="lista_proveedores"),
     path("cotizaciones/categorias/", views.lista_categorias, name="lista_categorias"),
@@ -74,6 +92,7 @@ urlpatterns = [
     path("cotizaciones/ceyesa/", views.lista_ceyesa, name="lista_ceyesa"),
     path("cotizaciones/hoffman/", views.lista_hoffman, name="lista_hoffman"),
     path("cotizaciones/alm-articulos/", views.lista_alm_articulos, name="lista_alm_articulos"),
+    path("cotizaciones/notas/", views.lista_notas, name="lista_notas"),
 
     # GUARDAR COTIZACIÓN
     path("cotizaciones/guardar/", views.guardar_cotizacion, name="guardar_cotizacion"),
@@ -86,6 +105,8 @@ urlpatterns = [
     path("cotizaciones/reportes/reporte_detallado_cotizacion/<str:num_reg>/", views.reporte_detallado_cotizacion, name="reporte_detallado_cotizacion"),
     path("cotizaciones/reportes/reporte_detallado_excel/<str:num_reg>/", views.reporte_detallado_excel, name="reporte_detallado_excel"),
     path("cotizaciones/reportes/reporte_resumen_cotizacion/<str:num_reg>/", views.reporte_resumen_cotizacion, name="reporte_resumen_cotizacion"),
+    path("cotizaciones/reportes/reporte_venta_total/<str:num_reg>/", views.reporte_venta_total_html, name="reporte_venta_total_html"),
+    path("cotizaciones/reportes/reporte_venta_parcial/<str:num_reg>/", views.reporte_venta_parcial_html, name="reporte_venta_parcial_html"),
 
     # SEGUIMIENTO DE COTIZACIONES
     # path("dashboard/seguimiento-cotizaciones/", views.lista_seguimiento_cotizaciones, name="lista_seguimiento_cotizaciones"),

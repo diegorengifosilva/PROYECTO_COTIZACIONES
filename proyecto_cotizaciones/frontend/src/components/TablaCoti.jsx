@@ -123,7 +123,6 @@ export default function TablaCoti({
             "Estado",
             "Importe",
             "",
-            "",
           ].map((h) => (
             <span className="text-sm font-[950] py-1.5 uppercase tracking-[0.2em] text-slate-800 text-center block">
               {h}
@@ -178,25 +177,10 @@ export default function TablaCoti({
             </span>,
 
             /* IMPORTE */
-            <div className="text-left py-1 w-full">
+            <div className="text-center py-1 w-full">
               <span className="text-xs font-bold text-slate-800 tabular-nums">
                 {c.tot_c}
               </span>
-            </div>,
-
-            /* BOTON (Solo Visual o disparador redundante) */
-            <div className="flex justify-start">
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  // Quitamos el e.stopPropagation() para que el clic "atraviese" hacia la fila
-                  // O simplemente lo dejamos sin onClick si la fila ya lo maneja
-                  className="h-7 w-7 p-0 rounded-2xl bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 border border-transparent hover:border-teal-100 transition-all shadow-none hover:shadow-sm"
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
-              </motion.div>
             </div>,
 
             /* ENVIO */
@@ -263,8 +247,8 @@ export default function TablaCoti({
           w-full
         ">
           {[
-            { label: "Pendiente de Envio para Revision", color: ENVIO_STATE_COLORS["0"] },
-            { label: "Pendiente de Envio para Aprobacion", color: ENVIO_STATE_COLORS["1"] },
+            //{ label: "Pendiente de Envio para Revision", color: ENVIO_STATE_COLORS["0"] },
+            //{ label: "Pendiente de Envio para Aprobacion", color: ENVIO_STATE_COLORS["1"] },
             { label: "Pendiente de Envio para Cliente", color: ENVIO_STATE_COLORS["2"] },
             { label: "Enviado al Cliente", color: ENVIO_STATE_COLORS["3"] },
           ].map(({ label, color }) => (

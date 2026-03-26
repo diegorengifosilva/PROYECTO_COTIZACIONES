@@ -18,11 +18,15 @@ import DashboardLayout from "@/dashboard/layout/DashboardLayout.jsx";
 import GlobalNavbar from "@/dashboard/layout/GlobalNavbar.jsx";
 
 // DASHBOARDS DE PRUEBA PARA COTIZACIONES
-import Cotizaciones from "./dashboard/cotizaciones/Cotizaciones";
-import RevisionCotizaciones from "./dashboard/revision_cotizaciones/RevisionCotizaciones";
-import AprobacionCotizacion from "@/dashboard/aprobacion_cotizacion/AprobacionCotizacion.jsx";
-import SeguimientoCotizaciones from "@/dashboard/seguimiento_cotizaciones/SeguimientoCotizaciones.jsx";
 import CotizacionesHome from "./dashboard/Home/CotizacionesHome";
+import AprobacionCotizacion from "@/dashboard/aprobacion_cotizacion/AprobacionCotizacion.jsx";
+import GestionClientes from "./dashboard/gestion_clientes/GestionClientes";
+
+// TABLAS
+import EstructuraComercial from "./dashboard/Tablas/EstructuraComercial/EstructuraComercial";
+import ParametrosVentas from "./dashboard/Tablas/ParametrosVentas/ParametrosVentas";
+import CatalogoMarcas from "./dashboard/Tablas/CatalogoMarcas/CatalogoMarcas";
+import GastosAnalisis from "./dashboard/Tablas/Gastos_Analisis/GastosAnalisis";
 
 // MODAL NUEVA COTIZACIÓN
 import CotizacionNuevaModal from "./dashboard/aprobacion_cotizacion/CotizacionNuevaModal";
@@ -54,31 +58,38 @@ export default function App() {
               {/* Home */}
               <Route path="cotizaciones-home" element={<CotizacionesHome />} />
 
-              {/* Cotizaciones */}
-              <Route path="cotizaciones" element={<Cotizaciones />} />
-
-              {/* Revisión */}
-              <Route
-                path="revision-cotizacion"
-                element={<RevisionCotizaciones />}
-              />
-
               {/* Aprobación */}
               <Route
                 path="aprobacion-cotizacion"
                 element={<AprobacionCotizacion />}
               />
 
-              {/* Seguimiento */}
-              <Route
-                path="seguimiento-cotizaciones"
-                element={<SeguimientoCotizaciones />}
-              />
-
               {/* Nueva Cotización */}
               <Route
                 path="cotizaciones/nueva"
                 element={<CotizacionNuevaModal />}
+              />
+
+              {/* Estructura y Comercial */}
+              <Route
+                path="tablas/estructura"
+                element={<EstructuraComercial />}
+              />
+
+              {/* Parámetros de Ventas */}
+              <Route
+                path="tablas/parametros"
+                element={<ParametrosVentas />}
+              />
+              {/* Catálogo de Productos */}
+              <Route
+                path="tablas/catalogo"
+                element={<CatalogoMarcas />}
+              />
+              {/* Clasificación de Gastos y Análisis */}
+              <Route
+                path="tablas/gastos"
+                element={<GastosAnalisis />}
               />
             </Route>
 

@@ -77,6 +77,15 @@ const ACCIONES_POR_MODO = {
 
 export default function AprobacionCotizacionModal({ open, onClose, cotizacion, modo, tipo, dashboard, onRefrescar }) {
   const [data, setData] = useState(cotizacion || {});
+  const [originalData, setOriginalData] = useState(cotizacion || {});
+
+  useEffect(() => {
+    setData(cotizacion || {});
+    setOriginalData(cotizacion || {});
+  }, [cotizacion]);
+
+  const isDirty =
+    JSON.stringify(data) !== JSON.stringify(originalData);
   const [loading, setLoading] = useState(false);
   const [tcamb, setTcamb] = useState(1);
   const [error, setError] = useState("");
@@ -325,6 +334,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
             cantidad: Number(form.cantidad),
             totalGrupo: form.totalGrupo,
             nroLineasPdf: Number(form.nroLineasPdf),
+            costoEnvio: Number(form.costoEnvio), // <-- Agregado
             header: {
               ...grupoPrev.header,
               can: Number(form.cantidad),
@@ -341,7 +351,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       const maxContador = existentes.length > 0 ? Math.max(...existentes) : 0;
       const nuevoContador = maxContador + 1;
 
-      const tipo = form.tipo; // "01" | "02"
+      const tipo = form.tipo; 
       const nuevoCog = String(nuevoContador).padStart(2, "0") + tipo;
 
       return {
@@ -352,6 +362,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
           cantidad: Number(form.cantidad),
           totalGrupo: form.totalGrupo,
           nroLineasPdf: Number(form.nroLineasPdf),
+          costoEnvio: Number(form.costoEnvio), // <-- Agregado
           items: [],
           header: {
             can: Number(form.cantidad),
@@ -408,6 +419,9 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         tot: Number(r.tot),
         tpr: r.tpr,
         tde: r.tde,
+        ent: r.ent,
+        enu: r.enu,
+        obs: r.obs,
       });
     });
 
@@ -421,20 +435,35 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     const esEdicion = Boolean(form.id);
 
     const itemProcesado = {
-      id: esEdicion ? form.id : `I${Date.now()}`, // 🔥 clave
+      id: esEdicion ? form.id : `I${Date.now()}`,
       num: esEdicion ? form.num : Date.now(),
-      cod: form.codigo,
-      des: form.descripcion,
-      pro: form.marca,
-      tpr: form.proveedor,
-      tde: form.unidad,
-      can: Number(form.cantidad),
-      puc: Number(form.costoPrecio),
-      tou: Number(form.utilidad),
-      cau: Number(form.porcentaje),
-      toc: Number(form.costoTotal),
-      val: Number(form.ventaPrecio),
-      tot: Number(form.ventaTotal),
+      
+      // Identificadores y Textos
+      cod: form.codigo || form.cod, // Soporta ambos nombres por si acaso
+      des: form.descripcion || form.des,
+      pro: form.marca || form.pro,
+      tpr: form.proveedor || form.tpr,
+      tde: form.unidad || form.tde,
+      obs: form.observacion || form.obs || "",
+
+      // Valores Numéricos Base
+      can: Number(form.cantidad || 0),
+      puc: Number(form.costoPrecio || form.puc || 0),
+      tou: Number(form.utilidad || form.tou || 0),
+      cau: Number(form.porcentaje || form.cau || 0),
+      toc: Number(form.costoTotal || form.toc || 0),
+      val: Number(form.ventaPrecio || form.val || 0),
+      tot: Number(form.ventaTotal || form.tot || 0),
+      cost_c_env: Number(form.costoConEnvio || form.cost_c_env || 0),
+
+      // 🚀 CAMPOS CRÍTICOS PARA EL ENVÍO (Nuevos)
+      cost_env: Number(form.costoEnvio || form.cost_env || 0),
+      por_env: Number(form.porcentajeEnvio || form.por_env || 0),
+      utilidadTotal: form.utilidadTotal, // Opcional, para visualización en UI
+      
+      // Logística
+      ent: form.entrega ? Number(form.entrega) : null,
+      enu: form.entrega_uni || form.enu || "D",
     };
 
     setGruposSuministros(prev => {
@@ -505,6 +534,9 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         tou: Number(row.tou || 0),
         mov: row.mov,
         tpr: row.tpr,
+        ent: row.ent, 
+        enu: row.enu,
+        obs: row.obs,
       };
 
       grupos[grupoId].items.push(item);
@@ -1298,6 +1330,42 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     );
   };
 
+  const handleAbrirReporteHTML = () => {
+    if (!numReg) {
+      console.warn("⚠️ No hay num_reg para generar el reporte");
+      return;
+    }
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    // Calculamos el tamaño máximo disponible de la pantalla
+    const ancho = window.screen.availWidth;
+    const alto = window.screen.availHeight;
+
+    // Usamos la función windowsOpen (o window.open si es el estándar)
+    // Pasándole las dimensiones máximas
+    windowsOpen(
+      `${API_URL}/cotizaciones/${numReg}/reporte-html/`,
+      ancho,
+      alto
+    );
+  };
+
+  const handleDescargarWordProfesional = () => {
+    if (!numReg) return;
+
+    const API_URL = import.meta.env.VITE_API_URL;
+    const url = `${API_URL}/cotizaciones/word/${numReg}/`;
+
+    // Creamos un link invisible para forzar la descarga del archivo
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Cotizacion_${numReg}.docx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   const condicionesGenerales = useMutation({
     mutationFn: (texto) =>
       api.post(
@@ -1684,21 +1752,39 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     // 🔹 Mapear suministros para incluir subtotal en la cabecera
     const suministrosPayload = Object.fromEntries(
       Object.entries(gruposSuministros).map(([cog, grupo]) => {
-        // 🔹 Suma de totales de los items del grupo
-        const subtotalItems = grupo.items.reduce(
-          (acc, item) => acc + Number(item.tot || 0),
+        
+        // Procesamos cada ítem del grupo para asegurar que viajen todos los campos
+        const itemsProcesados = (grupo.items || []).map(item => ({
+          ...item,
+          // Forzamos que los campos de envío y cálculos viajen como números
+          can: Number(item.can || 0),
+          puc: Number(item.puc || 0),
+          toc: Number(item.toc || 0),
+          cau: Number(item.cau || 0),
+          tou: Number(item.tou || 0),
+          val: Number(item.val || 0),
+          tot: Number(item.tot || 0),
+          // 🚀 CAMPOS DE ENVÍO CRÍTICOS
+          cost_env: Number(item.cost_env || 0), 
+          por_env: Number(item.por_env || 0),
+          cost_c_env: Number(item.cost_c_env || 0),
+        }));
+  
+        // 🔹 Suma de totales de los items ya procesados
+        const subtotalItems = itemsProcesados.reduce(
+          (acc, item) => acc + item.tot,
           0
         );
-
-        // 🔹 Total real considerando la cantidad del grupo
-        const totalGrupo = subtotalItems * Number(grupo.cantidad || 1);
-
+  
         return [
           cog,
           {
             ...grupo,
-            total: +subtotalItems.toFixed(2), // 👈 TOTAL REAL para nig=0
-            items: grupo.items,
+            costoEnvio: Number(grupo.costoEnvio || 0),
+            tipoEnvio: grupo.tipoEnvio || "TOTAL",
+            total: +subtotalItems.toFixed(2),
+            // 👇 Ahora los items viajan con el mapeo correcto para Django
+            items: itemsProcesados, 
           },
         ];
       })
@@ -1773,6 +1859,12 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     console.log("📝 PAYLOAD SUMINISTROS ANTES DE GUARDAR", suministrosPayload);
 
     console.log("🚀 PAYLOAD FINAL ENVIADO:", payload.detalle.tot_c);
+
+    // 🔍 DEBUG TOTAL: Verificamos qué sale del Navegador
+    console.log("-----------------------------------------");
+    console.log("🚀 PAYLOAD FINAL QUE SALE HACIA DJANGO:");
+    console.log(JSON.stringify(payload.suministros, null, 2)); // Lo vemos bonito y estructurado
+    console.log("-----------------------------------------");
 
     crearMutation.mutate(payload);
   };
@@ -1919,6 +2011,32 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     );
   };
 
+  // Reporte Venta Total
+  const handleReporteVentaTotal = () => {
+    if (!numReg) return;
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    window.open(
+      `${API_URL}/cotizaciones/reportes/reporte_venta_total/${numReg}/`,
+      "_blank",
+      "width=800,height=450,scrollbars=yes,resizable=yes"
+    );
+  };
+
+  // Reporte Venta Parcial
+  const handleReporteVentaParcial = () => {
+    if (!numReg) return;
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    window.open(
+      `${API_URL}/cotizaciones/reportes/reporte_venta_parcial/${numReg}/`,
+      "_blank",
+      "width=800,height=450,scrollbars=yes,resizable=yes"
+    );
+  };
+
   //=====================
   // ACTTULIZAR TOTALES
   //=====================
@@ -2035,45 +2153,144 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     0
   );
 
+  // LUEGO PASAR A FORMATMONEY.JS
+  const formatMoney = (value) => {
+    if (value === null || value === undefined) return "-";
+
+    const simbolo = data?.moneda_simbolo || "S/";
+
+    return `${simbolo} ${new Intl.NumberFormat("es-PE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value))}`;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-full max-w-[175vh] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg p-4 sm:p-6">        
+        <DialogContent className="w-full max-w-[175vh] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg p-4">        
         
-        {/* ENCABEZADO ERP PREMIUM */}
-        <div className="relative bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shadow-sm shrink-0">
+        {/* ENCABEZADO EJECUTIVO ERP */}
+        <div className="relative bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
+
+          {/* IZQUIERDA */}
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
-              <LayoutDashboard className="text-white" size={24} />
+
+            {/* Avatar inteligente cliente */}
+            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-teal-600 flex items-center justify-center text-white font-black text-sm lg:text-base shadow-lg shadow-teal-100">
+              {data?.cliente_nombre?.charAt(0) || "C"}
             </div>
+
+            {/* CONTEXTO DOCUMENTO */}
             <div>
+
+              {/* Breadcrumb ERP */}
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                Gestión Comercial / Cotizaciones
+              </p>
+
+              {/* Número documento */}
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">
+
+                <h2 className="text-sm lg:text-xl font-black tracking-tight text-slate-800 uppercase leading-none">
                   Cotización {data?.numero || ""}
                 </h2>
-                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-200 uppercase tracking-widest">
+
+                {/* Registro interno */}
+                <span className="hidden sm:inline-block px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] lg:text-[11px] font-bold rounded-md border border-slate-200">
                   {data?.num_reg || ""}
                 </span>
+
+                {/* Indicador cambios */}
+                {isDirty && (
+                  <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 rounded">
+                    Sin guardar
+                  </span>
+                )}
+
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
-                <p className="text-xs font-bold text-slate-600 uppercase tracking-tighter">
-                   {data?.cliente_nombre || "Seleccione un cliente para continuar"}
-                </p>
-              </div>
+
+              {/* Cliente */}
+              <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[200px] lg:max-w-none">
+                {data?.cliente_nombre || "Seleccione un cliente"}
+              </p>
+
             </div>
           </div>
 
-          {/* INDICADORES RÁPIDOS (Opcional, si tienes estos datos) */}
-          <div className="hidden md:flex gap-8 mr-8">
+
+          {/* DERECHA → PANEL EJECUTIVO */}
+          <div className="flex gap-4 lg:gap-8 items-center">
+
+            {/* Área / Tipo */}
+            <div className="hidden sm:block text-right border-r border-slate-100 pr-4">
+              <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Área / Tipo
+              </p>
+
+              <p className="text-[10px] lg:text-xs font-black text-teal-600 uppercase mt-1">
+                {data?.area_nombre || "General"} • {data?.tipo_nombre || "Venta"}
+              </p>
+            </div>
+
+
+            {/* Estado pipeline */}
+            <div className="hidden md:block text-right">
+
+              <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Estado
+              </p>
+
+              <span
+                className={`mt-1 inline-block px-2 py-0.5 rounded-md text-[10px] font-bold
+                ${
+                  data?.estado_codigo === "APR"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : data?.estado_codigo === "ENV"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                {data?.estado_nombre || "Borrador"}
+              </span>
+
+            </div>
+
+
+            {/* Probabilidad */}
+            <div className="hidden lg:block text-right">
+
+              <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Probabilidad
+              </p>
+
+              <p className="text-[10px] lg:text-xs font-black text-indigo-600 mt-1">
+                {data?.prob || 0}%
+              </p>
+
+            </div>
+
+
+            {/* Total documento */}
             <div className="text-right">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Tipo Cotización</p>
-              <p className="text-xs font-black text-teal-600 uppercase">{data?.tipo_nombre || ""}</p>
+
+              <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Total
+              </p>
+
+              <p className="text-[11px] lg:text-sm font-black text-emerald-600 mt-1">
+                {data?.tot_c ? formatMoney(data.tot_c) : "-"}
+              </p>
+
             </div>
-            <div className="text-right border-l border-slate-100 pl-8">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Área</p>
-              <p className="text-xs font-black text-teal-600 uppercase">{data?.area_nombre || ""}</p>
-            </div>
+
+
+            {/* SLOT BOTONES HEADER */}
+            {/* ejemplo:
+            <Button size="sm">Guardar</Button>
+            */}
+
           </div>
+
         </div>
  
         {/* ESTADOS */}
@@ -2182,6 +2399,8 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
                 onReporteDetallado={handleReporteDetallado}
                 onExportDetalladoExcel={handleExportDetalladoExcel}
                 onReporteResumen={handleReporteResumen}
+                onReporteVentaTotal={handleReporteVentaTotal}
+                onReporteVentaParcial={handleReporteVentaParcial}
                 tabsToShow={tabsToShow}
             />
 
@@ -2227,7 +2446,8 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
               onClose={() => setOpenGrupoModal(false)}
               onConfirm={handleAgregarGrupoSuministro}
               grupo={grupoActivo}
-            />
+              tipoVenta={data?.tven}
+            />  
 
             <RegistroItemModal
               open={openItemModal}
@@ -2235,6 +2455,14 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
               onConfirm={handleAgregarItem}
               item={itemActivo}
               num_reg={numReg}
+              tipoVenta={data?.tven}
+              costoEnvioGrupo={gruposSuministros?.[grupoActivo]?.costoEnvio || 0}
+              sumaVentaGrupo={
+                (gruposSuministros?.[grupoActivo]?.items || []).reduce(
+                  (acc, item) => acc + Number(item.toc || 0),
+                  0
+                )
+              }
             />
 
             <RegistroItemBuscadorModal
@@ -2428,74 +2656,66 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
             />
 
             {/* ACCIONES */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 shadow-t px-6 py-3 flex flex-col sm:flex-row justify-between gap-2 sm:gap-0">
+            <div className="sticky bottom-0 bg-slate-50/80 backdrop-blur-sm border-t border-slate-200 px-6 py-2 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
+              
+              {/* LADO IZQUIERDO: GESTIÓN DE LA COTIZACIÓN */}
+              <div className="flex items-center gap-2">
+                {/* Contenedor sutil para botones de estado/seguimiento */}
+                <div className="flex gap-1 bg-white/50 p-1 rounded-xl border border-slate-200/60 shadow-sm">
+                  {acciones.estado && (
+                    <Button
+                      variant="ghost"
+                      className="text-[10px] font-black uppercase tracking-tight text-sky-700 hover:bg-sky-100 h-8 px-4 rounded-lg transition-all"
+                      onClick={setOpenEstadoCoti}
+                    >
+                      Estado
+                    </Button>
+                  )}
 
-              {/* NÚMERO DE COTIZACIÓN */}
-              <div
-                className="flex items-center gap-2 text-xs font-bold text-gray-600"
-                title={data?.num_reg ? "Editar Registro" : "Nuevo Registro"}
-              >
-                {data?.num_reg ? (
-                  <FilePenLine className="w-4 h-4 text-yellow-500" />
-                ) : (
-                  <File className="w-4 h-4 text-gray-700" />
-                )}
+                  {acciones.seguimiento && (
+                    <Button
+                      variant="ghost"
+                      className="text-[10px] font-black uppercase tracking-tight text-purple-700 hover:bg-purple-100 h-8 px-4 rounded-lg transition-all"
+                      onClick={setOpenSeg}
+                    >
+                      Seguimiento
+                    </Button>
+                  )}
 
-                <span>
-                  N°: {data?.num_reg || ""}
-                </span>
-
-                {acciones.estado && (
-                  <Button
-                    variant="ghost"
-                    className="text-[11px] font-black uppercase tracking-widest text-sky-700 hover:bg-sky-100 border border-transparent hover:border-sky-200 rounded-xl h-9 px-8 transition-all"
-                    onClick={setOpenEstadoCoti}
-                  >
-                    Estado
-                  </Button>
-                )}
-
-                {acciones.seguimiento && (
-                  <Button
-                    variant="ghost"
-                    className="text-[11px] font-black uppercase tracking-widest text-purple-700 hover:bg-purple-100 border border-transparent hover:border-purple-200 rounded-xl h-9 px-8 transition-all"
-                    onClick={setOpenSeg}
-                  >
-                    Seguimiento
-                  </Button>
-                )}
-
-                {acciones.probabilidad && (
-                  <Button
-                    variant="ghost"
-                    className="text-[11px] font-black uppercase tracking-widest text-teal-700 hover:bg-teal-100 border border-transparent hover:border-teal-200 rounded-xl h-9 px-8 transition-all"
-                    onClick={setOpenProbabilidad}
-                  >
-                    Probabilidad
-                  </Button>
-                )}
+                  {acciones.probabilidad && (
+                    <Button
+                      variant="ghost"
+                      className="text-[10px] font-black uppercase tracking-tight text-teal-700 hover:bg-teal-100 h-8 px-4 rounded-lg transition-all"
+                      onClick={setOpenProbabilidad}
+                    >
+                      Probabilidad
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {/* BOTONES */}
+              {/* LADO DERECHO: ACCIONES PRINCIPALES */}
               <div className="flex gap-2">
                 {acciones.reporte && (
                   <Button
                     variant="ghost"
-                    className="text-[11px] font-black uppercase tracking-widest text-blue-700 hover:bg-blue-100 border border-transparent hover:border-blue-200 rounded-xl h-9 px-8 transition-all"
+                    onClick={handleAbrirReporteHTML}
+                    className="text-[11px] font-black uppercase tracking-widest text-blue-700 hover:bg-blue-50 border border-blue-200/50 rounded-xl h-9 px-6 transition-all"
                   >
                     Reporte
                   </Button>
                 )}
 
+                {/* BOTÓN GUARDAR CON ESTADO PENDING */}
                 {acciones.guardar && data.envio !== 3 && (
                   <Button
                     type="button"
                     variant="ghost"
                     disabled={crearMutation.isPending}
-                    className={`text-[11px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100 border border-transparent hover:border-emerald-200 rounded-xl h-9 px-8 transition-all
-                      ${crearMutation.isPending
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                        : "text-emerald-700 hover:bg-emerald-100 border border-transparent hover:border-emerald-200 rounded-xl h-9 px-8 transition-all"
+                    className={`text-[11px] font-black uppercase tracking-widest rounded-xl h-9 px-6 transition-all border 
+                      ${crearMutation.isPending 
+                        ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" 
+                        : "text-emerald-700 hover:bg-emerald-50 border-emerald-200/60"
                       }`}
                     onClick={handleGuardarCotizacion}
                   >
@@ -2506,7 +2726,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
                 {acciones.salir && (
                   <Button
                     variant="ghost"
-                    className="text-[11px] font-black uppercase tracking-widest text-red-700 hover:bg-red-100 border border-transparent hover:border-red-200 rounded-xl h-9 px-8 transition-all"
+                    className="text-[11px] font-black uppercase tracking-widest text-red-700 hover:bg-red-50 border border-red-200/60 rounded-xl h-9 px-6 transition-all"
                     onClick={onClose}
                   >
                     Salir

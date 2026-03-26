@@ -39,14 +39,13 @@ const TabsContent = React.forwardRef(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      // Contenedor visual
-      "mt-3 overflow-hidden rounded-2xl bg-white",
-      "border border-gray-200 shadow-md",
+      // 1. Quitamos fondo, bordes y sombras para que sea un contenedor invisible
+      "mt-0 ", 
+      
+      // 2. Mantenemos un padding consistente para que el contenido no toque los bordes del modal
+      "p-0", 
 
-      // Espaciado adaptable
-      "p-3 sm:p-4 lg:p-5",
-
-      // Comportamiento responsive
+      // 3. Comportamiento base
       "w-full min-h-0",
 
       className

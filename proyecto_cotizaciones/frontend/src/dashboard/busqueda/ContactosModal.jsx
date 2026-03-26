@@ -22,14 +22,23 @@ function ContactosModal({ open, onClose, tipo, onSelect }) {
 
       let usuarios = Array.isArray(data) ? data : [];
 
-      // 🔎 Filtro por tipo (regla de negocio - desactivado temporalmente)
-      // if (tipo === "tecnico") {
-      //   usuarios = usuarios.filter(u => u.area === 5);
-      // }
-      //
-      // if (tipo === "comercial") {
-      //   usuarios = usuarios.filter(u => u.area === 3);
-      // }
+      // ==========================================
+      // LÓGICA DE FILTRADO POR TIPO
+      // ==========================================
+      if (tipo === "comercial") {
+        const IDsPermitidos = [
+          "eduardo.bonilla",
+          "claudia.carbonel",
+          "luisa.oncebay",
+          "diego.rengifo"
+        ];
+        
+        // Solo mostramos los de la lista para Comercial
+        usuarios = usuarios.filter(u => 
+          IDsPermitidos.includes(u.usuario_usu)
+        );
+      } 
+      // Si tipo === "tecnico", no entra al IF y muestra todos (comportamiento estándar)
 
       setResults(usuarios);
 

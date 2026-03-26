@@ -36,12 +36,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { crearCotizacion } from "@/api/cotizaciones";
 import { toast } from "react-toastify";
 
-export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, tipo, dashboard }) {
+export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, tipo, dashboard, cotizaciones = [] }) {
 
   // ==========================
   // DATA INICIAL (LIMPIA)
   // ==========================
   const [data, setData] = useState({
+    num_reg: "",
     fecha: new Date().toISOString().split("T")[0],
     estado_codigo: 2,
     tot_d: "D",
@@ -49,12 +50,12 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
     tmone: "D",
     tcamb: "3.362",
     acu_s: "D",
-    nombt: "",
-    telet: "",
-    mov1t: "",
-    mov2t: "",
-    mov3t: "",
-    mailt: "",
+    nombc: "",
+    telec: "",
+    mov1c: "",
+    mov2c: "",
+    mov3c: "",
+    mailc: "",
   });
   const [loading, setLoading] = useState(false);
   const [suministros] = useState([]);
@@ -203,29 +204,63 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
   const canSave = envio !== 3;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // 🧹 OPCIONAL: Puedes limpiar el estado aquí al cerrar si prefieres
+      // o dejar que el inicio del modal lo haga.
+      return;
+    }
 
-    const fetchUsuarioActual = async () => {
+    const prepararModal = async () => {
       try {
+        // 1. Cargamos datos del usuario actual
         const { data: usuario } = await api.get("usuario-actual/");
 
-        setData(prev => ({
-          ...prev,
-          nombt: usuario?.nomb_cort_usu ?? "",
-          telet: usuario?.telefono ?? "",
-          mov1t: usuario?.movil1 ?? "",
-          mov2t: usuario?.movil2 ?? "",
-          mov3t: usuario?.movil3 ?? "",
-          mailt: usuario?.email_usu ?? "",
-          regus: usuario?.usuario_usu ?? "",
-        }));
+        if (tipo === "N") {
+          // 🆕 ES NUEVA: Calculamos el siguiente num_reg
+          const listaNumeros = cotizaciones
+            .map((c) => parseInt(c.num_reg))
+            .filter((n) => !isNaN(n));
+
+          const maxActual = listaNumeros.length > 0 ? Math.max(...listaNumeros) : 2026000000;
+          const proximoReg = maxActual + 1;
+
+          // ✨ RESET TOTAL: Aquí definimos el estado inicial vacío
+          setData({
+            num_reg: proximoReg,
+            fecha: new Date().toISOString().split('T')[0], // Fecha de hoy
+            cliente_codigo: "",
+            nombr: "",
+            referencia: "",
+            // ... otros campos que quieras vaciar ...
+            suministros: {}, 
+            servicios: {},
+            tot_c: 0,
+            
+            // Datos del Vendedor (Snapshot del usuario actual)
+            regus: usuario?.usuario_usu ?? "",
+            nombc: usuario?.nomb_cort_usu ?? "",
+            telec: usuario?.telefono ?? "",
+            mov1c: usuario?.movil1 ?? "",
+            mov2c: usuario?.movil2 ?? "",
+            mov3c: usuario?.movil3 ?? "",
+            mailc: usuario?.email_usu ?? "",
+          });
+        } else {
+          // 📝 ES EDICIÓN: Solo actualizamos los datos del usuario si es necesario
+          // o dejamos los datos que ya vienen en 'data' por el clic en la tabla.
+          setData((prev) => ({
+            ...prev,
+            regus: prev.regus || (usuario?.usuario_usu ?? ""),
+          }));
+        }
+
       } catch (err) {
-        console.error("Error cargando usuario actual", err);
+        console.error("Error al preparar el modal de cotización:", err);
       }
     };
 
-    fetchUsuarioActual();
-  }, [open]);
+    prepararModal();
+  }, [open, tipo, cotizaciones]);
 
   // =====================
   // EDICIÓN DE CAMPOS
@@ -307,7 +342,15 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
           cog,
           {
             ...grupo,
-            total: +subtotalItems.toFixed(2), // 👈 TOTAL REAL para nig=0
+
+            // 👇 IMPORTANTE: enviar explícitamente estos campos
+            costoEnvio: Number(grupo.costoEnvio || 0),
+            tipoEnvio: grupo.tipoEnvio || "TOTAL",
+
+            // 👇 total real del grupo (cabecera nig=0)
+            total: +subtotalItems.toFixed(2),
+
+            // 👇 items siempre deben viajar completos
             items: grupo.items,
           },
         ];
@@ -1294,6 +1337,32 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       "width=800,height=450,scrollbars=yes,resizable=yes"
     );
   };
+
+  // Reporte Venta Total
+  const handleReporteVentaTotal = () => {
+    if (!numReg) return;
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    window.open(
+      `${API_URL}/cotizaciones/reportes/reporte_venta_total/${numReg}/`,
+      "_blank",
+      "width=800,height=450,scrollbars=yes,resizable=yes"
+    );
+  };
+
+  // Reporte Venta Parcial
+  const handleReporteVentaParcial = () => {
+    if (!numReg) return;
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    window.open(
+      `${API_URL}/cotizaciones/reportes/reporte_venta_parcial/${numReg}/`,
+      "_blank",
+      "width=800,height=450,scrollbars=yes,resizable=yes"
+    );
+  };
   
   //=====================
   // ACTTULIZAR TOTALES
@@ -1422,10 +1491,10 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-full max-w-[175vh] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg p-4 sm:p-6">         
+        <DialogContent className="w-full max-w-[175vh] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg p-4">        
 
-        {/* ENCABEZADO ERP PREMIUM */}
-        <div className="relative bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shadow-sm shrink-0">
+        {/* ENCABEZADO */}
+        <div className="relative bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-100">
               <LayoutDashboard className="text-white" size={24} />
@@ -1433,7 +1502,7 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">
-                  {data?.num_reg ? `Cotización ${data.num_reg}` : "Nueva Cotización"}
+                  {data?.numero ? `Cotización ${data.num_reg}` : "Nueva Cotización"}
                 </h2>
                 <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-200 uppercase tracking-widest">
                   {data?.num_reg || ""}
@@ -1552,45 +1621,40 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
           openEnviarAprobacion={openEnviarAprobacion}
           setOpenEnviarAprobacion={setOpenEnviarAprobacion}
           onReporteSuministros={handleReporteSuministros}
+          onExportSuministrosExcel={handleExportSuministrosExcel}
+          onReporteServicios={handleReporteServicios}
+          onReporteDetallado={handleReporteDetallado}
+          onExportDetalladoExcel={handleExportDetalladoExcel}
+          onReporteResumen={handleReporteResumen}
+          onReporteVentaTotal={handleReporteVentaTotal}
+          onReporteVentaParcial={handleReporteVentaParcial}
           tabsToShow={tabsToShow}
         />
 
-        {/* ACCIONES */}
-        <div className="flex items-center justify-between mt-6 text-xs">
-
-          {/* NÚMERO DE COTIZACIÓN */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl border border-slate-200">
-            {data?.num_reg ? (
-              <FilePenLine className="w-4 h-4 text-amber-500" />
-            ) : (
-              <File className="w-4 h-4 text-indigo-500" />
-            )}
-            <span className="text-[11px] font-black text-slate-600 uppercase tracking-tighter">
-              ID: {data?.num_reg || ""}
-            </span>
-          </div>
-
-          {/* BOTONES */}
+        {/* SECCIÓN DE ACCIONES (FOOTER) - STICKY Y OPTIMIZADO */}
+        <div className="sticky bottom-0 bg-slate-50/80 backdrop-blur-sm border-t border-slate-200 px-6 py-2 flex flex-col sm:flex-row justify-end items-center gap-4 shrink-0 z-10 mt-6">
+          
+          {/* LADO DERECHO: ACCIONES PRINCIPALES */}
           <div className="flex gap-2">
+            {/* REPORTE */}
             <Button
               variant="ghost"
-              className="text-[11px] font-black uppercase tracking-widest text-blue-700 hover:bg-blue-100 border border-transparent hover:border-blue-200 rounded-xl h-9 px-8 transition-all"
-              onClick={() => {
-                console.log("Generar reporte");
-              }}
+              onClick={() => { console.log("Generar reporte"); }}
+              className="text-[11px] font-black uppercase tracking-widest text-blue-700 hover:bg-blue-50 border border-blue-200/50 rounded-xl h-9 px-6 transition-all"
             >
               Reporte
             </Button>
 
+            {/* BOTÓN GUARDAR DINÁMICO */}
             {canSave && (
               <Button
                 type="button"
                 variant="ghost"
                 disabled={crearMutation.isPending}
-                className={`text-[11px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100 border border-transparent hover:border-emerald-200 rounded-xl h-9 px-8 transition-all
+                className={`text-[11px] font-black uppercase tracking-widest rounded-xl h-9 px-6 transition-all border 
                   ${crearMutation.isPending
-                    ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                    : "text-emerald-700 hover:bg-emerald-100 border border-transparent hover:border-emerald-200 rounded-xl h-9 px-8 transition-all"
+                    ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed shadow-none"
+                    : "text-emerald-700 hover:bg-emerald-50 border-emerald-200/60 shadow-sm"
                   }`}
                 onClick={handleGuardarCotizacion}
               >
@@ -1598,9 +1662,10 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
               </Button>
             )}
 
+            {/* SALIR */}
             <Button
-              className="text-[11px] font-black uppercase tracking-widest text-red-700 hover:bg-red-100 border border-transparent hover:border-red-200 rounded-xl h-9 px-8 transition-all"
               variant="ghost"
+              className="text-[11px] font-black uppercase tracking-widest text-red-700 hover:bg-red-50 border border-red-200/60 rounded-xl h-9 px-6 transition-all"
               onClick={onClose}
             >
               Salir
@@ -1650,6 +1715,7 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
               onClose={() => setOpenGrupoModal(false)}
               onConfirm={handleAgregarGrupoSuministro}
               grupo={grupoActivo}
+              tipoVenta="T" 
             />
 
             <RegistroItemModal
@@ -1658,6 +1724,7 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
               onConfirm={handleAgregarItem}
               item={itemActivo}
               num_reg={numReg}
+              tipoVenta={data?.tven}
             />
 
             <RegistroItemBuscadorModal

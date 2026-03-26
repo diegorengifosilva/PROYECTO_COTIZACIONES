@@ -12,6 +12,13 @@ import logging
 from decimal import Decimal, InvalidOperation
 from html import unescape
 from openpyxl import Workbook
+from weasyprint import HTML
+from pdf2docx import Converter
+import tempfile
+from pathlib import Path
+import shutil
+from docxtpl import DocxTemplate, RichText
+import jinja2
 
 # ─── Librerías de terceros ──────────────────────────
 from reportlab.pdfgen import canvas
@@ -21,12 +28,12 @@ logger = logging.getLogger(__name__)
 
 # ─── Django core ────────────────────────────────────
 from django.conf import settings
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.utils import timezone
 from django.db.models import Sum, Count, Q, F, Max, DecimalField, ExpressionWrapper
-from django.db.models.functions import TruncDate, Coalesce
+from django.db.models.functions import TruncDate, Coalesce, ExtractMonth
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import transaction
@@ -50,7 +57,6 @@ from rest_framework.generics import RetrieveAPIView
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.conf import settings
-import os
 
 from django.shortcuts import render
 from collections import OrderedDict
@@ -66,8 +72,11 @@ from datetime import date, datetime, timedelta
 from django.utils.timezone import now
 from .models import (
     DashboardCotizacion,
+    DashboardOportunidad,
     vc_tab_areas,
+    vc_tab_cargos,
     vc_tab_clientes,
+    vc_tab_clientes_d,
     vc_tab_estado,
     vc_mov_cotizaciones,
     seg_usuario,
@@ -88,11 +97,17 @@ from .models import (
     alm_articulos,
     ObjetivoAnualArea,
     ObjetivoAnual,
+    Notificacion,
+    vc_tab_notas,
+    vc_mov_orden,
     )
 from .serializers import (
     DashboardCotizacionTablaSerializer,
+    DashboardOportunidadTablaSerializer,
     AreasSerializer,
+    CargosSerializer,
     ClientesSerializer,
+    RepresentantesSerializer,
     EstadoSerializer,
     CotizacionesSerializer,
     SegUsuarioSerializer,
@@ -114,6 +129,8 @@ from .serializers import (
     AlmArticulosSerializer,
     ObjetivoAnualAreaSerializer,
     ObjetivoAnualSerializer,
+    NotificacionSerializer,
+    NotasSerializer,
 )
 
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
@@ -331,9 +348,10 @@ def cotizaciones_dashboard_view(request):
         # ============================================================
         # 2) Query base
         # ============================================================
-        qs = DashboardCotizacion.objects.filter(
-            fecha__year=anno
-        )
+        qs = DashboardCotizacion.objects.all()
+
+        if anno != "%":
+            qs = qs.filter(anno_a=anno)
 
         if mes != "%":
             qs = qs.filter(fecha__month=mes)
@@ -781,6 +799,207 @@ def recalcular_totales_cotizacion(request, num_reg):
 
 #========================================================================================
 
+##===============##
+## OPORTUNIDADES ##
+##===============##
+# ─── Dashboard Cotizaciones (versión moderna) ─────────────────────
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def oportunidades_dashboard_view(request):
+    """
+    Dashboard + Tabla para Oportunidades con filtros flexibles.
+    Sincronizado con la estructura de vc_mov_oportunidades.
+    """
+    try:
+        from datetime import date
+        from unidecode import unidecode
+        from django.db.models import Func, F, Value, TextField
+        from django.db.models.functions import Lower
+        import re
+
+        # ============================================================
+        # 1) Parámetros principales
+        # ============================================================
+        anno = request.GET.get("anno", date.today().year)
+        mes = request.GET.get("mes", "%")
+
+        cliente = request.GET.get("cliente", "%")
+        estado = request.GET.get("estado", "%")
+        area = request.GET.get("area", "%")
+        responsable = request.GET.get("responsable", "%")
+
+        # Mapeo de búsqueda flexible para Oportunidades
+        CAMPOS_BUSQUEDA = {
+            "num_reg": "num_reg",
+            "codig": "codig",
+            "f_recp": "f_recp",
+            "cliente_nombre": "nombr",
+            "contac": "contac",
+            "descr": "descr",
+            "respo": "respo",
+            "monto": "monto",
+            "comen": "comen",
+            "regus": "regus",
+        }
+
+        campo = request.GET.get("campo")
+        valor = request.GET.get("valor")
+
+        fecha_inicio = request.GET.get("fechaInicio") # Basado en f_recp
+        fecha_fin = request.GET.get("fechaFin")
+
+        # ============================================================
+        # 2) Query base
+        # ============================================================
+        qs = DashboardOportunidad.objects.filter(
+            anno_a=anno
+        )
+
+        if mes != "%":
+            qs = qs.filter(f_recp__month=mes)
+
+        if cliente != "%":
+            qs = qs.filter(empre=cliente)
+
+        if estado != "%":
+            estados = [e for e in estado.split(",") if e]
+            if len(estados) == 1:
+                qs = qs.filter(estad=estados[0])
+            else:
+                qs = qs.filter(estad__in=estados)
+
+        if area != "%":
+            qs = qs.filter(area=area)
+
+        if responsable != "%":
+            qs = qs.filter(respo=responsable)
+
+        # Rango de fechas (sobre fecha de recepción)
+        if fecha_inicio:
+            qs = qs.filter(f_recp__gte=fecha_inicio)
+        if fecha_fin:
+            qs = qs.filter(f_recp__lte=fecha_fin)
+
+        # ============================================================
+        # 3) Normalización de búsqueda flexible
+        # ============================================================
+        def normalizar(texto):
+            if not texto: return None
+            t = unidecode(texto.lower().strip())
+            return re.sub(r"\s+", " ", t)
+
+        class Replace(Func):
+            function = "REPLACE"
+            arity = 3
+
+        if campo and valor not in (None, "", " "):
+            campo_real = CAMPOS_BUSQUEDA.get(campo)
+            if campo_real:
+                valor_norm = normalizar(valor)
+                qs = qs.annotate(
+                    campo_clean=Replace(
+                        Replace(
+                            Lower(F(campo_real)),
+                            Value("  ", output_field=TextField()),
+                            Value(" ", output_field=TextField()),
+                            output_field=TextField()
+                        ),
+                        Value("  ", output_field=TextField()),
+                        Value(" ", output_field=TextField()),
+                        output_field=TextField()
+                    )
+                ).filter(campo_clean__icontains=valor_norm)
+
+        # ============================================================
+        # 4) Dashboard Stats Oportunidades
+        # ============================================================
+        total = qs.count()
+        
+        # Mapeo de estados manual para el conteo de stats
+        estado_map = {"PENDIENTE": 0, "COTIZADO": 0, "PERDIDO": 0, "ADJUDICADO": 0}
+
+        meses = [0] * 12
+        monto_total_soles = 0
+        monto_total_dolares = 0
+        este_mes = 0
+        hoy = date.today()
+        clientes_stats = {}
+
+        for o in qs:
+            # ===== Estados =====
+            est_nom = o.estado_nombre
+            estado_map[est_nom] = estado_map.get(est_nom, 0) + 1
+
+            # ===== Montos =====
+            val_monto = float(o.monto or 0)
+            if o.tmone == "S":
+                monto_total_soles += val_monto
+            else: # Dólares por defecto
+                monto_total_dolares += val_monto
+
+            # ===== Conteo temporal =====
+            if o.f_recp:
+                idx = o.f_recp.month - 1
+                meses[idx] += 1
+                if o.f_recp.month == hoy.month:
+                    este_mes += 1
+
+            # ===== Stats por cliente =====
+            cod_cli = o.empre or "VAR"
+            nom_cli = o.nombr or "CLIENTE VARIO"
+            
+            if cod_cli not in clientes_stats:
+                clientes_stats[cod_cli] = {
+                    "cliente_codigo": cod_cli,
+                    "nombre": nom_cli,
+                    "cantidad": 0,
+                    "totalSoles": 0,
+                    "totalDolares": 0,
+                }
+            clientes_stats[cod_cli]["cantidad"] += 1
+            if o.tmone == "S":
+                clientes_stats[cod_cli]["totalSoles"] += val_monto
+            else:
+                clientes_stats[cod_cli]["totalDolares"] += val_monto
+
+        # Porcentajes por cliente
+        for c_data in clientes_stats.values():
+            c_data["porcentaje"] = round((c_data["cantidad"] / total) * 100, 2) if total else 0
+
+        dashboard_data = {
+            "total": total,
+            "esteMes": este_mes,
+            "montoTotalSoles": round(monto_total_soles, 2),
+            "montoTotalDolares": round(monto_total_dolares, 2),
+            "promedioSoles": round(monto_total_soles / total, 2) if total else 0,
+            "promedioDolares": round(monto_total_dolares / total, 2) if total else 0,
+            "estados": estado_map,
+            "porMes": meses,
+            "clientes": list(clientes_stats.values()),
+        }
+
+        # ============================================================
+        # 5) Serialización de Tabla
+        # ============================================================
+        # Nota: Debes crear este Serializer similar al de cotizaciones
+        tabla_data = DashboardOportunidadTablaSerializer(
+            qs.order_by("-f_recp", "-num_reg"),
+            many=True
+        ).data
+
+        return Response({
+            "dashboard": dashboard_data,
+            "tabla": tabla_data,
+            "anno": anno
+        })
+
+    except Exception:
+        import traceback
+        print(traceback.format_exc())
+        return Response({"error": "Error interno en el servidor de Oportunidades."}, status=500)
+
+#========================================================================================
+
 ##=========##
 ## GUARDAR ##
 ##=========##
@@ -789,38 +1008,52 @@ def recalcular_totales_cotizacion(request, num_reg):
 @permission_classes([IsAuthenticated])
 def guardar_cotizacion(request):
     with transaction.atomic():
-
-        num_reg = request.data.get("num_reg")
+        # Capturamos el num_reg que viene del frontend
+        num_reg_frontend = request.data.get("num_reg")
+        cotizacion = None
 
         # =========================
-        # 1️⃣ CREAR O ACTUALIZAR
+        # 1️⃣ BUSCAR O CREAR
         # =========================
-        if num_reg:
-            cotizacion = DashboardCotizacion.objects.select_for_update().get(
-                num_reg=num_reg
-            )
-        else:
+        if num_reg_frontend:
+            # Intentamos buscar si ya existe para ACTUALIZAR
+            cotizacion = DashboardCotizacion.objects.filter(num_reg=num_reg_frontend).select_for_update().first()
+
+        if not cotizacion:
+            # SI NO EXISTE: Es una creación nueva.
+            nuevo_num = num_reg_frontend if num_reg_frontend else obtener_siguiente_num_reg()
+            hoy = timezone.now()
+            
+            # 💡 IMPORTANTE: Pasamos anno_a y campos críticos directamente en el .create()
+            # para evitar que MySQL rechace el registro por restricciones NOT NULL.
             cotizacion = DashboardCotizacion.objects.create(
-                num_reg=obtener_siguiente_num_reg(),
-                fecha=request.data.get("fecha", timezone.now().date()),
+                num_reg=nuevo_num,
+                fecha=request.data.get("fecha", hoy.date()),
                 envio=0,
                 sald=Decimal("0.00"),
                 tot_c=Decimal("0.00"),
                 igv="N",
+                anno_a=str(hoy.year),  # <-- Esto arregla tu error de DB
+                anno=str(hoy.year),
+                mes=str(hoy.month).zfill(2)
             )
+            es_creacion = True
+        else:
+            es_creacion = False
 
         # =========================
-        # 2️⃣ DATOS
+        # 2️⃣ ACTUALIZAR DATOS (EXCEPTO num_reg)
         # =========================
         data = request.data.copy()
+        
+        data.pop("num_reg", None)
 
-        # 🔒 Si no viene acu_e, NO tocarlo
         if "acu_e" not in data:
             data.pop("acu_e", None)
 
         serializer = DashboardCotizacionSerializer(
             cotizacion,
-            data=request.data,
+            data=data,
             partial=True
         )
         serializer.is_valid(raise_exception=True)
@@ -859,29 +1092,19 @@ def guardar_cotizacion(request):
         # 4️⃣ SUMINISTROS
         # =========================
         suministros = request.data.get("suministros", {})
+        
+        # 💡 Usamos el campo tven del modelo DashboardCotizacion
+        # T = Venta Total, P = Venta Parcial
+        tipo_venta_general = cotizacion.tven 
 
-        # Limpieza total
-        CotiSuministros.objects.filter(
-            num_reg=cotizacion.num_reg
-        ).delete()
+        CotiSuministros.objects.filter(num_reg=cotizacion.num_reg).delete()
 
-        # 👉 Mapeo TIPO → CÓDIGO
-        TIPO_MAP = {
-            "01": "01",
-            "02": "02",
-        }
-
+        TIPO_MAP = {"01": "01", "02": "02"}
         num_contador = 1
         grupo_index = 1
 
         for _, grupo in suministros.items():
-
-            # =====================
-            # COG CORRECTO (CC + TT)
-            # =====================
             cog = grupo.get("cog") or grupo.get("id")
-
-            # Fallback de seguridad (por si viene vacío)
             if not cog:
                 tipo = grupo.get("tipo", "01")
                 tipo_code = TIPO_MAP.get(tipo, "01")
@@ -890,6 +1113,9 @@ def guardar_cotizacion(request):
 
             cantidad_grupo = Decimal(str(grupo.get("cantidad", 0)))
             total_grupo = Decimal(str(grupo.get("total", 0)))
+            
+            # Valor que viene del modal de grupo (React)
+            costo_envio_valor = Decimal(str(grupo.get("costoEnvio", 0)))
 
             # =====================
             # CABECERA (nig = 0)
@@ -901,19 +1127,20 @@ def guardar_cotizacion(request):
                 nig=0,
                 num=num_contador,
                 cod="0",
-                des="",
-                pro="",
                 can=cantidad_grupo,
-                puc=Decimal("0.00"),
-                toc=Decimal("0.00"),
-                cau=Decimal("0.00"),
-                tou=Decimal("0.00"),
-                val=Decimal("0.00"),
                 tot=total_grupo,
+
+                # 💡 Lógica basada en tven:
+                # Si tven es 'T' -> guarda en env_tot
+                # Si tven es 'P' -> guarda en env_par (Parcial)
+                env_tot=costo_envio_valor if tipo_venta_general == "T" else Decimal("0.00"),
+                env_par=costo_envio_valor if tipo_venta_general == "P" else Decimal("0.00"),
+                cost_c_env=Decimal("0.00"),
+
                 mov="01",
-                tpr="",
-                tde="",
                 tog="0",
+                cost_env=Decimal("0.00"),
+                por_env=Decimal("0.00"),
             )
 
             num_contador += 1
@@ -922,7 +1149,6 @@ def guardar_cotizacion(request):
             # ITEMS (nig = 1)
             # =====================
             for item in grupo.get("items", []):
-
                 CotiSuministros.objects.create(
                     num_reg=cotizacion.num_reg,
                     cog=cog,
@@ -939,14 +1165,24 @@ def guardar_cotizacion(request):
                     tou=Decimal(str(item.get("tou", 0))),
                     val=Decimal(str(item.get("val", 0))),
                     tot=Decimal(str(item.get("tot", 0))),
+                    
+                    # Costos unitarios por ítem
+                    cost_env=Decimal(str(item.get("cost_env", 0))),
+                    por_env=Decimal(str(item.get("por_env", 0))),
+                    
+                    env_tot=Decimal("0.00"),
+                    env_par=Decimal("0.00"),
+                    
                     mov="01",
                     tpr=item.get("tpr"),
                     tde=item.get("tde"),
                     tog="0",
+                    ent=item.get("ent"),
+                    enu=item.get("enu"),
+                    obs=item.get("obs"),
                 )
-
                 num_contador += 1
-
+                
         # =========================
         # 5️⃣ SERVICIOS
         # =========================
@@ -1151,11 +1387,7 @@ def guardar_cotizacion(request):
 
         # 👉 AHORA SÍ guardar
         cotizacion.save(update_fields=[
-            "tot_c",
-            "des_a",
-            "des_t",
-            "des_p",
-            "des_m",
+            "tot_c", "des_a", "des_t", "des_p", "des_m",
         ])
 
         return Response(
@@ -1163,7 +1395,8 @@ def guardar_cotizacion(request):
                 "message": "Cotización guardada correctamente",
                 "num_reg": cotizacion.num_reg
             },
-            status=status.HTTP_200_OK if num_reg else status.HTTP_201_CREATED
+            # Ajustamos la condición aquí:
+            status=status.HTTP_200_OK if not es_creacion else status.HTTP_201_CREATED
         )
 
 # ADICIONAL
@@ -1197,9 +1430,10 @@ def obtener_siguiente_num_reg():
 def buscar_encargados_por_empresa(request, empresa):
     q = request.GET.get("q", "").strip()
 
+    # Filtramos en vc_tab_clientes_d
     encargados = vc_tab_clientes_d.objects.filter(
-        empresa=empresa,
-        activo=True
+        empresa=empresa,    # El campo 'empresa' de la DB coincide con el ID del cliente
+        activo="1"          # IMPORTANTE: En tu modelo es CharField, usamos "1" no True
     ).filter(
         Q(representante__icontains=q) |
         Q(codigo__icontains=q)
@@ -1558,25 +1792,6 @@ def descuento_cotizacion(request, num_reg):
 
     return Response({"ok": True})
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def cotizacion_pdf_context(request, num_reg):
-    context = build_cotizacion_pdf_context(num_reg)
-
-    if not context:
-        return Response({"error": "Cotización no existe"}, status=404)
-
-    return Response(context)
-
-@csrf_exempt
-def cotizacion_pdf_preview(request, num_reg):
-    context = build_cotizacion_pdf_context(num_reg)
-
-    if not context:
-        return HttpResponse("Cotización no existe", status=404)
-
-    return render(request, "reportes/cotizacion_pdf.html", context)
-
 def build_cotizacion_pdf_context(num_reg):
 
     # =========================
@@ -1593,7 +1808,7 @@ def build_cotizacion_pdf_context(num_reg):
             "fpago", "lugar",
             "tmone", "igv",
             "valid", "acu_s",
-            "tot_c", "acu_e", "des_m"
+            "tot_c", "acu_e", "des_m", "num_reg",
         )
         .filter(num_reg=num_reg)
         .first()
@@ -1624,6 +1839,7 @@ def build_cotizacion_pdf_context(num_reg):
     # =========================
     cabecera = {
         "numero": cotizacion.numero,
+        "num_reg": cotizacion.num_reg,
         "fecha": cotizacion.fecha,
         "referencia": cotizacion.referencia,
         "cliente": cotizacion.cliente_codigo,
@@ -1697,6 +1913,7 @@ def build_cotizacion_pdf_context(num_reg):
                 "cog": s.cog,
                 "titulo": s.nog,
                 "mov": s.mov,
+                "entrega":s.ent or 0,
                 "cantidad": can,
                 "total": tot,
                 "total_grupo": tot * can,
@@ -1714,7 +1931,8 @@ def build_cotizacion_pdf_context(num_reg):
                 "codigo": s.cod,
                 "descripcion": s.des,
                 "unidad": s.tde,
-                "cantidad": s.can or Decimal("0.00"),
+                "entrega":s.ent or 0,
+                "cantidad": s.can or 0,
                 "precio_unitario": pu,
                 "total": tot,
             })
@@ -1866,11 +2084,184 @@ def build_cotizacion_pdf_context(num_reg):
         "secciones": secciones,
     }
 
-from pathlib import Path
-from django.conf import settings
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-from weasyprint import HTML
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def cotizacion_pdf_context(request, num_reg):
+    context = build_cotizacion_pdf_context(num_reg)
+
+    if not context:
+        return Response({"error": "Cotización no existe"}, status=404)
+
+    return Response(context)
+
+@csrf_exempt
+def cotizacion_pdf_preview(request, num_reg):
+    context = build_cotizacion_pdf_context(num_reg)
+
+    if not context:
+        return HttpResponse("Cotización no existe", status=404)
+
+    return render(request, "reportes/cotizacion_pdf.html", context)
+
+@csrf_exempt
+def cotizacion_reporte_html(request, num_reg):
+    context = build_cotizacion_pdf_context(num_reg)
+
+    if not context:
+        return HttpResponse("Cotización no existe", status=404)
+
+    return render(request, "reportes/cotizacion_pdf.html", context)
+
+def descargar_cotizacion_word(request, num_reg):
+    # Asumimos que build_cotizacion_pdf_context ya trae toda la data necesaria
+    context = build_cotizacion_pdf_context(num_reg)
+    if not context:
+        return HttpResponse("La cotización no existe", status=404)
+
+    # --- PALETA DE COLORES CEBRA ---
+    COLOR_GRIS_CLARO = "#FFFFFF"  # Fila A (Grisáceo)
+    COLOR_AZUL_SUAVE = "#FEFEFF"  # Fila B (Azulado)
+    # ------------------------------
+
+    template_path = os.path.join(settings.BASE_DIR, 'cotizaciones_api', 'templates', 'reportes', 'plantilla_word.docx')
+    
+    try:
+        doc = DocxTemplate(template_path)
+        moneda = context['totales'].get('moneda', 'Dólares')
+
+        def formatear_moneda(valor):
+            simbolo = "$" if moneda == "Dólares" else "S/."
+            return f"{simbolo} {valor:,.2f}"
+        
+        # 0. Inicializamos contador global para alternancia de colores
+        fila_idx = 0
+
+        # 1. Procesamiento de suministros
+        for g in context.get('suministros', []):
+            # Asignación de color para el sombreado de la fila
+            g['bg_color'] = COLOR_AZUL_SUAVE if fila_idx % 2 == 0 else COLOR_GRIS_CLARO
+            fila_idx += 1
+            
+            g['total_g_f'] = formatear_moneda(g.get('total_grupo', 0))
+            g['subtotal_f'] = formatear_moneda(g.get('subtotal_tot_items', 0))
+            g['unitario_f'] = formatear_moneda(g.get('total', 0))
+            g['cant_f'] = f"{g.get('cantidad', 0):,.2f}"
+            
+            g['filas'] = g.get('items', [])
+            for item in g['filas']:
+                desc = item.get('descripcion', '') or ''
+                # Limpieza de HTML básico para descripciones de items
+                item['desc_f'] = RichText(desc.replace('<br>', '\n').replace('<br/>', '\n'))
+                item['precio_f'] = formatear_moneda(item.get('precio_unitario', 0))
+                item['total_f'] = formatear_moneda(item.get('total', 0))
+                item['cant_f'] = f"{item.get('cantidad', 0):,.2f}"
+
+        # 2. Procesamiento de servicios
+        for s in context.get('servicios', []):
+            # Continuamos la alternancia basándonos en el contador global
+            s['bg_color'] = COLOR_AZUL_SUAVE if fila_idx % 2 == 0 else COLOR_GRIS_CLARO
+            fila_idx += 1
+            
+            s['total_g_f'] = formatear_moneda(s.get('total_servicio', 0))
+            s['unitario_f'] = formatear_moneda(s.get('total', 0))
+            s['cant_f'] = f"{s.get('cantidad', 0):,.2f}"
+            
+            detalle_raw = s.get('detalle', '') or ''
+            rt = RichText()
+            
+            # Decodificación y limpieza de bloques HTML
+            texto = unescape(detalle_raw).replace('&nbsp;', ' ')
+            bloques = re.split(r'(<li>|<p>|<ul>|</ul>|</p>|</li>)', texto)
+            
+            dentro_de_lista = False
+            for i, parte in enumerate(bloques):
+                if '<ul>' in parte:
+                    dentro_de_lista = True
+                    continue
+                if '</ul>' in parte:
+                    dentro_de_lista = False
+                    continue
+                    
+                contenido = re.sub(r'<[^>]+>', '', parte).strip()
+                if not contenido:
+                    continue
+                    
+                # Formateo de títulos (negrita) y viñetas
+                if contenido.endswith(':'):
+                    if len(rt.xml) > 0: rt.add('\n')
+                    rt.add(contenido, bold=True)
+                    rt.add('\n')
+                elif '<li>' in bloques[i-1]:
+                    rt.add(f" • {contenido}\n")
+                elif '<p>' in bloques[i-1] or not dentro_de_lista:
+                    rt.add(f"{contenido}\n")
+
+            s['detalle_f'] = rt
+
+        # 2.5 Procesamiento de Condiciones Generales (Estilo para Cuadro Dinámico)
+        cond_raw = context.get('condiciones_generales', {}).get('condiciones', '') or ''
+        rt_cond = RichText()
+
+        COLOR_PRO = "444444"
+        TAMANO_PRO = 18  # 9pt
+
+        if cond_raw:
+            texto = unescape(cond_raw).replace('&nbsp;', ' ').replace('\xa0', ' ')
+            bloques = re.split(r'(<li>|<p>|<ul>|</ul>|</p>|</li>)', texto)
+
+            dentro_de_lista = False
+
+            for i, parte in enumerate(bloques):
+                if '<ul>' in parte:
+                    dentro_de_lista = True
+                    continue
+                if '</ul>' in parte:
+                    dentro_de_lista = False
+                    continue
+
+                contenido = re.sub(r'<[^>]+>', '', parte).strip()
+                if not contenido:
+                    continue
+
+                es_titulo = contenido.endswith(':') or (contenido.isupper() and len(contenido) > 3)
+
+                if es_titulo:
+                    if len(rt_cond.xml) > 0:
+                        rt_cond.add('\n')
+                    rt_cond.add(contenido, bold=True, color=COLOR_PRO, size=TAMANO_PRO)
+                    rt_cond.add('\n')
+
+                elif i > 0 and '<li>' in bloques[i-1]:
+                    rt_cond.add(f" • {contenido}\n", color=COLOR_PRO, size=TAMANO_PRO)
+
+                else:
+                    rt_cond.add(f"{contenido}\n", color=COLOR_PRO, size=TAMANO_PRO)
+
+        context['condiciones_generales']['texto_f'] = rt_cond
+
+        # 3. Procesamiento de totales finales
+        t = context['totales']
+        t['desc_f'] = formatear_moneda(t.get('descuento', 0))
+        t['total_f'] = formatear_moneda(t.get('total_cotizacion', 0))
+        
+        # Renderizado único del documento
+        doc.render(context)
+
+        # Preparación de la respuesta de descarga
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        content = buffer.getvalue()
+        buffer.close()
+
+        response = HttpResponse(
+            content,
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Cotizacion_{num_reg}.docx"'
+        return response
+
+    except Exception as e:
+        return HttpResponse(f"Error técnico en el servidor: {str(e)}", status=500) 
 
 def cotizacion_pdf(request, num_reg):
     context = build_cotizacion_pdf_context(num_reg)
@@ -2088,12 +2479,25 @@ def crear_nueva_version_cotizacion(request, num_reg):
             nuevo_cotin = siguiente_version(base.numero)
 
             print("🔹 Creando nueva cotización")
+            
+            # Extraemos el código del usuario desde el token (tal como en tu endpoint)
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            jwt_auth = JWTAuthentication()
+            header = jwt_auth.get_header(request)
+            raw_token = jwt_auth.get_raw_token(header)
+            validated_token = jwt_auth.get_validated_token(raw_token)
+            usuario_codigo = validated_token.get("user_id") # Este es tu usuario_usu
+
             nueva_cotizacion = deepcopy(base)
             nueva_cotizacion.pk = None
             nueva_cotizacion.num_reg = None
             nueva_cotizacion.numero = nuevo_cotin
             nueva_cotizacion.estado_codigo = 2
             nueva_cotizacion.envio = 0
+            
+            # Asignamos el código del usuario que realiza la acción
+            nueva_cotizacion.regus = usuario_codigo 
+            
             nueva_cotizacion.save()
 
             # =====================================================
@@ -2223,12 +2627,24 @@ def generar_copiar_cotizacion(request, num_reg):
                 return Response({"error": "La cotización no existe"}, status=404)
 
             print("🔹 Creando copia sin COTIN")
+            
+            # Extraemos el código del usuario desde el token
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            jwt_auth = JWTAuthentication()
+            header = jwt_auth.get_header(request)
+            raw_token = jwt_auth.get_raw_token(header)
+            validated_token = jwt_auth.get_validated_token(raw_token)
+            usuario_codigo = validated_token.get("user_id")
+
             nueva_cotizacion = deepcopy(base)
             nueva_cotizacion.pk = None
             nueva_cotizacion.num_reg = None
-            nueva_cotizacion.numero = None          # ❌ No asignamos COTIN
-            nueva_cotizacion.estado_codigo = 2      # Pendiente de envío
+            nueva_cotizacion.numero = None
+            nueva_cotizacion.estado_codigo = 2
             nueva_cotizacion.envio = 0
+            
+            # Marcamos quién registró la copia
+            nueva_cotizacion.regus = usuario_codigo
 
             # =========================
             # 🔹 REFERENCIA (MARCAR COPIA)
@@ -2472,53 +2888,50 @@ def retornar_cotizacion(request, num_reg):
 ##===================##
 @api_view(["GET", "POST", "PUT"])
 def objetivos_anuales(request):
-
-    # 🔹 Código real del usuario (clave para todo el sistema)
+    # Mantenemos la referencia pero ya no será el filtro principal
     usuario_codigo = request.user.usuario_usu
 
     # =================
-    # LISTAR
+    # LISTAR (Global)
     # =================
     if request.method == "GET":
         anno = request.query_params.get("anno")
 
         if not anno:
-            return Response(
-                {"error": "Debe enviar el año"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Debe enviar el año"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            objetivo = ObjetivoAnual.objects.prefetch_related("areas").get(
-                anno=anno,
-                encargado=usuario_codigo,
-                activo=True
-            )
+        # CAMBIO CLAVE: Cambiamos .get() por .filter() para traer todos los objetivos del año.
+        # Quitamos: encargado=usuario_codigo
+        objetivos = ObjetivoAnual.objects.prefetch_related("areas").filter(
+            anno=anno,
+            activo=True
+        )
 
-            serializer = ObjetivoAnualSerializer(objetivo)
+        if objetivos.exists():
+            # many=True porque ahora sumaremos todas las metas activas del año
+            serializer = ObjetivoAnualSerializer(objetivos, many=True)
             return Response(serializer.data)
-
-        except ObjetivoAnual.DoesNotExist:
+        else:
             return Response(
-                {"message": "No existe objetivo para ese año"},
+                {"message": "No existen objetivos activos para ese año"},
                 status=status.HTTP_200_OK
             )
 
     # =================
-    # CREAR
+    # CREAR (Global)
     # =================
     if request.method == "POST":
-
-        # 🔥 Desactiva objetivos anteriores del mismo usuario
+        # Ahora desactivamos TODOS los objetivos del año indicado para "resetear" la meta global
+        anno_post = request.data.get("anno")
         ObjetivoAnual.objects.filter(
-            encargado=usuario_codigo,
+            anno=anno_post,
             activo=True
         ).update(activo=False)
 
         serializer = ObjetivoAnualSerializer(data=request.data)
-
         if serializer.is_valid():
-            serializer.save(encargado=usuario_codigo)
+            # El encargado sigue siendo quien CREA el registro por auditoría
+            serializer.save(encargado=usuario_codigo) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -2528,32 +2941,23 @@ def objetivos_anuales(request):
     # =================
     if request.method == "PUT":
         anno = request.data.get("anno")
-
-        if not anno:
-            return Response(
-                {"error": "Debe enviar el año"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        # Aquí podrías usar el ID del objetivo para ser más preciso, 
+        # pero si mantienes anno, filtramos el que esté activo.
         try:
             objetivo = ObjetivoAnual.objects.get(
                 anno=anno,
-                encargado=usuario_codigo
+                activo=True
+                # encargado=usuario_codigo <-- Eliminado
             )
         except ObjetivoAnual.DoesNotExist:
-            return Response(
-                {"error": "No existe ese objetivo"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No existe ese objetivo"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = ObjetivoAnualSerializer(objetivo, data=request.data)
-
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 ##=========##
 ## RESUMEN ##
@@ -2582,10 +2986,17 @@ def resumen_dashboard(request):
     # ===============================
     # COTIZACIONES ANUALES
     # ===============================
-    cotizaciones_anuales = DashboardCotizacion.objects.filter(
-        nombc=nombre_corto,
-        fecha__year=anno
-    ).values_list("num_reg", flat=True)
+    base = DashboardCotizacion.objects.filter(
+        nombc=nombre_corto
+    )
+
+    base = aplicar_filtros(base, request)
+
+    cotizaciones_anuales = base.filter(fecha__year=anno)
+    cotizaciones_mes = base.filter(
+        fecha__year=anno,
+        fecha__month=mes
+    )
 
     # ===============================
     # COTIZACIONES MENSUALES
@@ -2739,6 +3150,336 @@ def logrado_dashboard(request):
         "mensual": float(total_mensual),
     })
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def kpis_dashboard(request):
+    from datetime import datetime
+    from django.db.models import Sum, Count
+    from django.db.models.functions import Coalesce, ExtractMonth
+    from decimal import Decimal
+
+    anno = int(request.GET.get("anno", datetime.now().year))
+    mes_actual_num = datetime.now().month
+    mes_actual_str = str(mes_actual_num).zfill(2)
+    
+    # Manejo de mes anterior para variaciones
+    mes_anterior_num = 12 if mes_actual_num == 1 else mes_actual_num - 1
+    anno_para_mes_anterior = anno - 1 if mes_actual_num == 1 else anno
+    mes_anterior_str = str(mes_anterior_num).zfill(2)
+
+    # ==========================================
+    # 1. QUERIES BASE (Cotizaciones y Ventas)
+    # ==========================================
+    # Cotizaciones (Ofertas)
+    qs_cot_anual = DashboardCotizacion.objects.filter(anno=anno)
+    qs_cot_mes = qs_cot_anual.filter(mes=mes_actual_str)
+    qs_cot_prev = DashboardCotizacion.objects.filter(anno=anno_para_mes_anterior, mes=mes_anterior_str)
+
+    # Ventas Reales (Órdenes de Compra Adjudicadas oesta=1)
+    qs_ventas_anual = vc_mov_orden.objects.filter(anno_a=str(anno), oesta=1)
+    qs_ventas_mes = qs_ventas_anual.annotate(m=ExtractMonth("ofec")).filter(m=mes_actual_num)
+    qs_ventas_prev = vc_mov_orden.objects.filter(anno_a=str(anno_para_mes_anterior), oesta=1)\
+                        .annotate(m=ExtractMonth("ofec")).filter(m=mes_anterior_num)
+
+    # ==========================================
+    # 2. CÁLCULOS DE MÉTRICAS
+    # ==========================================
+    def get_monto(qs, field="tot_c"):
+        return qs.aggregate(total=Coalesce(Sum(field), Decimal("0.00")))["total"]
+
+    def calc_var(actual, anterior):
+        if anterior and anterior != 0:
+            return round(((float(actual) - float(anterior)) / float(anterior)) * 100, 1)
+        return 0
+
+    # --- KPI 1: Cantidad de Cotizaciones ---
+    cant_mes = qs_cot_mes.count()
+    cant_anual = qs_cot_anual.count()
+    var_cant = calc_var(cant_mes, qs_cot_prev.count())
+
+    # --- KPI 2: Monto Cotizado ---
+    monto_cot_mes = get_monto(qs_cot_mes)
+    monto_cot_anual = get_monto(qs_cot_anual)
+    var_monto_cot = calc_var(monto_cot_mes, get_monto(qs_cot_prev))
+
+    # --- KPI 3: Ventas Reales (OC) ---
+    monto_v_mes = get_monto(qs_ventas_mes, "otot")
+    monto_v_anual = get_monto(qs_ventas_anual, "otot")
+    var_v = calc_var(monto_v_mes, get_monto(qs_ventas_prev, "otot"))
+
+    # --- KPI 4: Efectividad (% Conversión de Monto) ---
+    # Calculamos qué porcentaje del monto cotizado se convirtió en venta real
+    def calc_efec(venta, coti):
+        return round((float(venta) / float(coti) * 100), 1) if coti > 0 else 0
+
+    efec_mes = calc_efec(monto_v_mes, monto_cot_mes)
+    efec_anual = calc_efec(monto_v_anual, monto_cot_anual)
+
+    # ==========================================
+    # 3. RESPUESTA ESTRUCTURADA PARA EL FRONTEND
+    # ==========================================
+    return JsonResponse({
+        # Cantidad de documentos
+        "total_cotizaciones": {
+            "anual": cant_anual,
+            "variacion": var_cant
+        },
+        "cotizaciones_mes": cant_mes,
+
+        # Monto ofertado
+        "monto_total": {
+            "anual": float(monto_cot_anual),
+            "variacion": var_monto_cot
+        },
+        "monto_mes": float(monto_cot_mes),
+
+        # Venta Real (OC)
+        "ventas_reales_anual": float(monto_v_anual),
+        "ventas_reales_mes": float(monto_v_mes),
+        "ventas_variacion": var_v,
+
+        # Ratios de eficiencia
+        "porcentaje_aprobacion": efec_anual,
+        "porcentaje_aprobacion_mes": efec_mes,
+        
+        # Extra (opcional por si lo usas en el footer)
+        "ticket_promedio": float(monto_v_anual / qs_ventas_anual.count()) if qs_ventas_anual.count() > 0 else 0
+    })
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tendencias_dashboard(request):
+    # 1. Obtener el año del request
+    anno_buscado = str(request.GET.get("anno", datetime.now().year))
+
+    # 2. DEFINIR LA BASE DE COTIZACIONES (Lo que se ofertó)
+    base = DashboardCotizacion.objects.filter(num_reg__startswith=anno_buscado)
+    base = aplicar_filtros(base, request)
+
+    # --- LÓGICA DE VENTAS REALES (OC) ---
+    # Filtramos por el campo anno_a y solo ADJUDICADAS (oesta=1)
+    ventas_reales_qs = (
+        vc_mov_orden.objects.filter(
+            anno_a=anno_buscado, 
+            oesta=1
+        )
+        .annotate(mes_num=ExtractMonth("ofec"))
+        .values("mes_num")
+        .annotate(total_oc=Coalesce(Sum("otot"), Decimal("0.00")))
+    )
+    
+    ventas_reales_dict = {
+        str(item["mes_num"]).zfill(2): item["total_oc"] 
+        for item in ventas_reales_qs
+    }
+
+    # ============================
+    # 1️⃣ VENTAS MENSUALES
+    # ============================
+    cotizaciones_raw = (
+        base.values("mes")
+        .annotate(
+            total=Coalesce(Sum("tot_c"), Decimal("0.00")),
+            cantidad=Count("num_reg")
+        )
+        .order_by("mes")
+    )
+    
+    cot_mensuales_dict = {item["mes"]: item for item in cotizaciones_raw}
+    
+    ventas_mensuales = []
+    for m in range(1, 13):
+        mes_str = str(m).zfill(2)
+        cot_data = cot_mensuales_dict.get(mes_str, {})
+        
+        ventas_mensuales.append({
+            "mes": mes_str,
+            "total": float(cot_data.get("total") or 0),
+            "oc": float(ventas_reales_dict.get(mes_str) or 0),
+            "cantidad": cot_data.get("cantidad") or 0
+        })
+
+    # ============================
+    # 2️⃣ TOP VENTAS COMERCIAL
+    # ============================
+    dnis_permitidos = ['43662598', '20068421', '70942025']
+    usuarios_qs = SegUsuario.objects.filter(dni__in=dnis_permitidos).values('dni', 'nomb_cort_usu', 'usuario_usu')
+    mapa_usuarios = {u['dni']: (u['nomb_cort_usu'] or u['usuario_usu']).strip().upper() for u in usuarios_qs}
+
+    cotizados_raw = (
+        base.filter(envio=3, codic__in=dnis_permitidos)
+        .values("codic")
+        .annotate(
+            monto_cotizado=Coalesce(Sum("tot_c"), Decimal("0.00")),
+            cantidad_cot=Count("num_reg")
+        )
+    )
+    dict_cotizados = {item['codic']: item for item in cotizados_raw}
+
+    # Filtro de VENTAS por VENDEDOR (Agregando oesta=1)
+    base_vendedores = base.filter(codic__in=dnis_permitidos)
+    cotizaciones_ids = base_vendedores.values_list('numero', flat=True) 
+    
+    ventas_raw = (
+        vc_mov_orden.objects.filter(
+            cotin__in=cotizaciones_ids, 
+            oesta=1  # <--- SOLO ADJUDICADAS
+        )
+        .exclude(otot__isnull=True)
+        .values('cotin') 
+        .annotate(total_venta_cotin=Sum('otot'))
+    )
+    dict_ventas_monto = {item['cotin']: item['total_venta_cotin'] for item in ventas_raw}
+
+    ranking_comercial_unificado = []
+    for codic, data_cot in dict_cotizados.items():
+        nombre_vendedor = mapa_usuarios.get(codic, f"DNI: {codic}")
+        ids_vendedor = base_vendedores.filter(codic=codic).values_list('numero', flat=True)
+        
+        venta_total = sum(float(dict_ventas_monto.get(cotin, 0) or 0) for cotin in ids_vendedor)
+        monto_cotizado = float(data_cot['monto_cotizado'])
+        cantidad = data_cot['cantidad_cot']
+
+        ranking_comercial_unificado.append({
+            "vendedor": nombre_vendedor,
+            "monto": venta_total,
+            "cotizado": monto_cotizado,
+            "cantidad": cantidad,
+            "ticket_promedio": venta_total / cantidad if cantidad > 0 else 0,
+            "color": "#008B8B" 
+        })
+
+    ranking_comercial = sorted(ranking_comercial_unificado, key=lambda x: x['monto'], reverse=True)
+
+    # ============================
+    # 3️⃣ EMBUDO
+    # ============================
+    embudo = [
+        {"etapa": "Cotizadas", "valor": base.count()},
+        {"etapa": "Aprobadas", "valor": base.filter(envio=3).count()},
+    ]
+
+    # ============================
+    # 4️⃣ DISTRIBUCIÓN POR ÁREA (Agregando oesta=1)
+    # ============================
+    AREA_MAP = {"1": "IND", "2": "MIN", "4": "OIL", "8": "SFY"}
+    areas_cotizadas_raw = base.values("area_codigo").exclude(area_codigo="3").annotate(
+        total_proyectos=Count("num_reg"),
+        monto_cotizado=Coalesce(Sum("tot_c"), Decimal("0.00"))
+    )
+
+    areas_final = []
+    for a in areas_cotizadas_raw:
+        cod_area = str(a["area_codigo"])
+        if cod_area not in AREA_MAP: continue
+            
+        ids_cotizaciones_area = base.filter(area_codigo=cod_area).values_list('numero', flat=True)
+        
+        # Filtro de Venta Real por Área con oesta=1
+        venta_real_area = vc_mov_orden.objects.filter(
+            cotin__in=ids_cotizaciones_area,
+            oesta=1  # <--- SOLO ADJUDICADAS
+        ).aggregate(total=Sum('otot'))['total'] or Decimal("0.00")
+
+        areas_final.append({
+            "area": AREA_MAP.get(cod_area),
+            "total": a["total_proyectos"],
+            "cotizado": float(a["monto_cotizado"]),
+            "monto": float(venta_real_area)
+        })
+
+    areas_final = sorted(areas_final, key=lambda x: x['monto'], reverse=True)
+
+    # ============================
+    # 5️⃣ CLIENTES RECURRENTES
+    # ============================
+    agrupados_qs = (
+        base.values("cliente_codigo")
+        .annotate(
+            total_cotizaciones=Count("num_reg"),
+            monto_cotizado=Coalesce(Sum("tot_c"), Decimal("0.00"))
+        )
+        .order_by("-total_cotizaciones")[:10]
+    )
+
+    # PASO 2: Mapeo de nombres (Convertimos el entero a string para comparar)
+    # Extraemos los códigos y evitamos errores si hay Nones
+    codigos_top = [item["cliente_codigo"].strip() for item in agrupados_qs if item["cliente_codigo"]]
+    
+    clientes_db = vc_tab_clientes.objects.filter(codigo__in=codigos_top)
+    
+    # IMPORTANTE: Convertimos c.codigo a str() antes de hacer .strip()
+    mapa_nombres = {
+        str(c.codigo).strip(): c.nombre.strip() 
+        for c in clientes_db
+    }
+
+    clientes_final = []
+    for item in agrupados_qs:
+        codigo_raw = item["cliente_codigo"] or ""
+        codigo_limpio = codigo_raw.strip()
+        
+        # Buscamos en el mapa usando el string limpio
+        nombre_real = mapa_nombres.get(codigo_limpio) or f"Cod: {codigo_limpio}"
+
+        # PASO 3: Ventas Reales
+        ids_cotizaciones_cliente = base.filter(cliente_codigo=codigo_raw).values_list('numero', flat=True)
+        
+        venta_real_cliente = vc_mov_orden.objects.filter(
+            cotin__in=ids_cotizaciones_cliente,
+            oesta=1
+        ).aggregate(total=Sum('otot'))['total'] or Decimal("0.00")
+
+        monto_c = float(item["monto_cotizado"])
+        monto_v = float(venta_real_cliente)
+
+        clientes_final.append({
+            "codigo": codigo_limpio,
+            "nombre": nombre_real,
+            "cotizaciones": item["total_cotizaciones"],
+            "monto_cotizado": monto_c,
+            "monto_real": monto_v,
+            "conversion": round((monto_v / monto_c * 100), 1) if monto_c > 0 else 0
+        })
+
+    clientes_recurrentes = sorted(clientes_final, key=lambda x: x['monto_real'], reverse=True)
+
+    return Response({
+        "ventas_mensuales": list(ventas_mensuales),
+        "ranking_comercial": ranking_comercial,
+        "embudo": embudo,
+        "areas": areas_final,
+        "clientes_recurrentes": clientes_recurrentes,
+    })
+
+def aplicar_filtros(base, request):
+
+    fecha_inicio = request.GET.get("fecha_inicio")
+    fecha_fin = request.GET.get("fecha_fin")
+    area = request.GET.get("area")
+    usuario = request.GET.get("usuario")
+    tipo = request.GET.get("tipo")  # P, S, V
+
+    # Rango de fechas
+    if fecha_inicio and fecha_fin:
+        base = base.filter(
+            fecha__range=[fecha_inicio, fecha_fin]
+        )
+
+    # Área
+    if area:
+        base = base.filter(area_codigo=area)
+
+    # Comercial (nombc guarda el nombre corto)
+    if usuario:
+        base = base.filter(nombc=usuario)
+
+    # Tipo de cotización
+    if tipo:
+        base = base.filter(cotit=tipo)
+
+    return base
+
 ##==========##
 ## ANALISIS ##
 ##==========##
@@ -2821,27 +3562,273 @@ def cotizaciones_analisis_view(request):
         import traceback
         print(traceback.format_exc())
         return Response({"error": str(e)}, status=500)
-    
+
+##================##
+## NOTIFICACIONES ##
+##================##
+# OBTEER NOTIFACIONES
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notificaciones_usuario(request):
+
+    usuario = request.user
+
+    notificaciones = Notificacion.objects.filter(
+        usuario=usuario
+    )[:10]
+
+    serializer = NotificacionSerializer(notificaciones, many=True)
+
+    return Response(serializer.data)
+
+# MARCAR COMO LEIDO
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def marcar_notificacion(request, pk):
+
+    try:
+        notif = Notificacion.objects.get(pk=pk, usuario=request.user)
+        notif.leido = True
+        notif.save()
+        return Response({"ok": True})
+    except Notificacion.DoesNotExist:
+        return Response({"error": "No encontrada"}, status=404)
+
+# NO LEIDAS
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notificaciones_no_leidas(request):
+
+    total = Notificacion.objects.filter(
+        usuario=request.user,
+        leido=False
+    ).count()
+
+    return Response({"total": total})
+
+# MAARCAR TODAS
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def marcar_todas_notificaciones(request):
+
+    Notificacion.objects.filter(
+        usuario=request.user,
+        leido=False
+    ).update(leido=True)
+
+    return Response({"ok": True})
+
+# GENERADOR
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generar_alertas(request):
+
+    alertas_sin_respuesta()
+
+    # Aquí luego agregarás:
+    # alertas_caida_conversion()
+    # alertas_clientes_inactivos()
+    # alertas_ticket_promedio()
+
+    return Response({"ok": True})
+
+# SIN RESPUESTA
+def alertas_sin_respuesta():
+
+    hoy = timezone.now().date()
+    limite = hoy - timedelta(days=7)
+
+    cotis = DashboardCotizacion.objects.filter(
+        fecha__lte=limite,
+        envio__isnull=True
+    )
+
+    for usuario in seg_usuario.objects.filter(activo=1):
+
+        cantidad = cotis.filter(
+            nombc=usuario.nomb_cort_usu
+        ).count()
+
+        if cantidad > 0:
+
+            existe = Notificacion.objects.filter(
+                usuario=usuario,
+                titulo="Cotizaciones sin respuesta",
+                leido=False
+            ).exists()
+
+            if not existe:
+                Notificacion.objects.create(
+                    usuario=usuario,
+                    tipo="urgente",
+                    titulo="Cotizaciones sin respuesta",
+                    descripcion=f"Tienes {cantidad} cotizaciones con más de 7 días sin respuesta",
+                    cantidad=cantidad
+                )
+
 #========================================================================================
 
 ##================##
 ## DATOS DE BD_VC ##
 ##================##
 # vc_tab_areas
-@api_view(["GET"])
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def lista_areas(request):
-    areas = vc_tab_areas.objects.filter(activo=True).order_by("nombre")
-    serializer = AreasSerializer(areas, many=True)
-    return Response(serializer.data)
+    if request.method == "GET":
+        # Quitamos el filtro de activo para ver todo el catálogo
+        areas = vc_tab_areas.objects.all().order_by("codigo")
+        serializer = AreasSerializer(areas, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == "POST":
+        serializer = AreasSerializer(data=request.data)
+        if serializer.is_valid(): # Corregido: is_valid()
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# vc_tab_cargos
+@api_view(["GET", "POST", "PUT"])
+@permission_classes([IsAuthenticated])
+def lista_cargos(request):
+    # --- GET: Listar todos los cargos ---
+    if request.method == "GET":
+        cargos = vc_tab_cargos.objects.all().order_by("codigo")
+        serializer = CargosSerializer(cargos, many=True)
+        return Response(serializer.data)
+    
+    # --- POST: Crear un nuevo cargo ---
+    elif request.method == "POST":
+        serializer = CargosSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # --- PUT: Actualizar (buscamos por el código enviado en el body) ---
+    elif request.method == "PUT":
+        codigo = request.data.get("codigo")
+        try:
+            cargo = vc_tab_cargos.objects.get(pk=codigo)
+            # partial=True permite actualizar solo algunos campos si fuera necesario
+            serializer = CargosSerializer(cargo, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except vc_tab_cargos.DoesNotExist:
+            return Response({"error": "Cargo no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
 # vc_tab_clientes
-@api_view(["GET"])
+@api_view(["GET", "POST", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated])
 def lista_clientes(request):
-    clientes = vc_tab_clientes.objects.filter(activo=True).order_by("nombre")
-    serializer = ClientesSerializer(clientes, many=True)
-    return Response(serializer.data)
+    
+    # 1. GET:
+    if request.method == "GET":
+        clientes = vc_tab_clientes.objects.all() 
+        serializer = ClientesSerializer(clientes, many=True)
+        return Response(serializer.data)
+
+    # 2. POST:
+    elif request.method == "POST":
+        serializer = ClientesSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "message": "Empresa registrada correctamente",
+                "data": serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. PUT:
+    elif request.method == "PUT":
+        codigo = request.data.get("codigo")
+        try:
+            cliente = vc_tab_clientes.objects.get(pk=codigo)
+            serializer = ClientesSerializer(cliente, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "message": "Empresa actualizada correctamente",
+                    "data": serializer.data
+                }, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except vc_tab_clientes.DoesNotExist:
+            return Response({"error": "Empresa no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
+    # 4. DELETE:
+    elif request.method == "DELETE":
+        codigo = request.data.get("codigo") or request.query_params.get("codigo")
+        
+        if not codigo:
+             return Response({"error": "Debe proporcionar el código"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            cliente = vc_tab_clientes.objects.get(pk=codigo)
+            cliente.delete()
+            return Response({"message": "Empresa eliminada correctamente"}, status=status.HTTP_200_OK)
+        except vc_tab_clientes.DoesNotExist:
+            return Response({"error": "Empresa no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception:
+            return Response({"error": "No se puede eliminar: el registro tiene datos asociados"}, status=status.HTTP_400_BAD_REQUEST)
+
+# vc_tab_clientes_d
+@api_view(["GET", "POST", "PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def lista_representantes(request):
+    
+    # 1. GET: Listar todos
+    if request.method == "GET":
+        representantes = vc_tab_clientes_d.objects.all()
+        serializer = RepresentantesSerializer(representantes, many=True)
+        return Response(serializer.data)
+    
+    # 2. POST: Registro simple (Igual que Clientes)
+    elif request.method == "POST":
+        # Ya no calculamos el Max('codigo') aquí. 
+        # Usamos directamente request.data que ya trae el código desde el Modal.
+        serializer = RepresentantesSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "message": "Representante registrado correctamente",
+                "data": serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. PUT: Actualizar
+    elif request.method == "PUT":
+        codigo = request.data.get("codigo")
+        try:
+            representante = vc_tab_clientes_d.objects.get(pk=codigo)
+            serializer = RepresentantesSerializer(representante, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "message": "Representante actualizado correctamente",
+                    "data": serializer.data
+                }, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except vc_tab_clientes_d.DoesNotExist:
+            return Response({"error": "Representante no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+    # 4. DELETE: Eliminar
+    elif request.method == "DELETE":
+        codigo = request.data.get("codigo") or request.query_params.get("codigo")
+        
+        if not codigo:
+            return Response({"error": "Debe proporcionar el código"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            representante = vc_tab_clientes_d.objects.get(pk=codigo)
+            representante.delete()
+            return Response({"message": "Representante eliminado correctamente"}, status=status.HTTP_200_OK)
+        except vc_tab_clientes_d.DoesNotExist:
+            return Response({"error": "Representante no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Error al eliminar: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 # vc_tab_estado
 @api_view(["GET"])
@@ -2851,6 +3838,7 @@ def lista_estados(request):
     serializer = EstadoSerializer(estados, many=True)
     return Response(serializer.data)
 
+#vc_tab_categorias
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def lista_categorias(request):
@@ -2858,6 +3846,7 @@ def lista_categorias(request):
     serializer = CategoriasSerializer(categorias, many=True)
     return Response(serializer.data)
 
+# vc_tab_tgastos
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def lista_tgasto(request):
@@ -2865,6 +3854,7 @@ def lista_tgasto(request):
     serializer = TGastosSerializer(tgasto, many=True)
     return Response(serializer.data)
 
+# vc_tab_tgastos_d
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def lista_tgasto_d(request):
@@ -2999,6 +3989,44 @@ def listar_usuario(request):
     except seg_usuario.DoesNotExist:
         return Response({"detail": "Usuario no encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
+# vc_tab_notas
+@api_view(["GET", "POST", "PUT"])
+@permission_classes([IsAuthenticated])
+def lista_notas(request):
+    # --- GET: Listar todas las notas ---
+    if request.method == "GET":
+        try:
+            notas = vc_tab_notas.objects.all().order_by("codigo")
+            serializer = NotasSerializer(notas, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error_db": str(e)}, status=500)
+    
+    # --- POST: Crear una nueva nota ---
+    elif request.method == "POST":
+        serializer = NotasSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # --- PUT: Actualizar nota técnica ---
+    elif request.method == "PUT":
+        codigo = request.data.get("codigo")
+        try:
+            nota = vc_tab_notas.objects.get(pk=codigo)
+            # partial=True permite actualizar nombre o estado por separado
+            serializer = NotasSerializer(nota, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except vc_tab_notas.DoesNotExist:
+            return Response(
+                {"error": "Nota técnica no encontrada"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
 #========================================================================================
 
 ##==========##
@@ -3640,7 +4668,6 @@ def reporte_detallado_cotizacion(request, num_reg):
         {"concepto": "EQUIPOS", "costo": costo_equipos, "ganancia": ganancia_equipos, "total": costo_equipos + ganancia_equipos},
         {"concepto": "MATERIALES", "costo": costo_materiales, "ganancia": ganancia_materiales, "total": costo_materiales + ganancia_materiales},
         {"concepto": "HH PROPIOS", "costo": costo_hh_propios, "ganancia": ganancia_hh_propios, "total": costo_hh_propios + ganancia_hh_propios},
-        {"concepto": "HH OTRAS AREAS", "costo": costo_hh_otras, "ganancia": ganancia_hh_otras, "total": costo_hh_otras + ganancia_hh_otras},
         {"concepto": "COSTO SERVICIOS", "costo": costo_servicios, "ganancia": ganancia_servicios, "total": costo_servicios + ganancia_servicios},
         {"concepto": "GASTOS ENTREGA", "costo": costo_gastos_entrega, "ganancia": ganancia_gastos_entrega, "total": costo_gastos_entrega + ganancia_gastos_entrega},
         {"concepto": "IMPREVISTOS", "costo": costo_imprevistos, "ganancia": ganancia_imprevistos, "total": costo_imprevistos + ganancia_imprevistos},
@@ -3821,7 +4848,6 @@ def reporte_resumen_cotizacion(request, num_reg):
         {"concepto": "GANANCIAS", "importe": ganancia_equipos + ganancia_materiales + ganancia_hh_propios +
                                          ganancia_hh_otras + ganancia_imprevistos + ganancia_gastos_entrega + ganancia_servicios},
         {"concepto": "HH PROPIOS", "importe": costo_hh_propios},
-        {"concepto": "HH OTRAS AREAS", "importe": costo_hh_otras},
         {"concepto": "IMPREVISTOS", "importe": costo_imprevistos},
         {"concepto": "GASTOS ENTREGA", "importe": costo_gastos_entrega},
     ]
@@ -3841,6 +4867,121 @@ def reporte_resumen_cotizacion(request, num_reg):
         "reportes/reporte_resumen_cotizacion.html",  # Plantilla específica para este resumen
         context,
     )
+
+@csrf_exempt
+def reporte_venta_total_html(request, num_reg):
+    num_reg = str(num_reg)
+
+    suministros = (
+        CotiSuministros.objects
+        .filter(num_reg=num_reg)
+        .order_by("cog", "nig", "num")
+    )
+
+    if not suministros.exists():
+        return HttpResponse("No existen suministros para esta cotización", status=404)
+
+    grupos = OrderedDict()
+
+    for row in suministros:
+        if row.cog not in grupos:
+            grupos[row.cog] = {
+                "titulo_grupo": "", 
+                "total_venta_grupo": Decimal("0.00"),
+                "envio_grupo": Decimal("0.00"),
+                "items": []
+            }
+
+        # CABECERA DEL GRUPO (nig = 0)
+        if row.nig == 0:
+            grupos[row.cog]["titulo_grupo"] = row.nog or "SIN TITULO"
+            # Usamos env_tot que es el campo del modelo para el total del grupo
+            grupos[row.cog]["envio_grupo"] = row.env_tot or Decimal("0.00")
+            grupos[row.cog]["total_venta_grupo"] = row.tot or Decimal("0.00")
+
+        # ITEMS DETALLE (nig > 0)
+        else:
+            subtotal_venta = row.tot or Decimal("0.00")
+            subtotal_costo = row.toc or Decimal("0.00")
+            
+            grupos[row.cog]["items"].append({
+                "cod": row.cod,
+                "des": row.des,
+                "can": row.can or Decimal("0"),
+                "puc": row.puc or Decimal("0.00"),     # Costo Unitario Base
+                "env_u": row.env_par or Decimal("0.00"), # Costo Envío por Item
+                "cce": row.cost_c_env or Decimal("0.00"), # Costo Con Envío (ya calculado)
+                "util_porc": row.cau or Decimal("0.00"), # % Utilidad (cau)
+                "val": row.val or Decimal("0.00"),     # Precio Venta Unitario
+                "tot": subtotal_venta,                  # Venta Total
+                "util_money": subtotal_venta - subtotal_costo
+            })
+
+    context = {
+        "num_reg": num_reg,
+        "titulo": "REPORTE DETALLADO DE SUMINISTROS (VENTA TOTAL)",
+        "grupos": grupos,
+        "fecha": datetime.now()
+    }
+
+    return render(request, "reportes/reporte_venta_total.html", context)
+
+@csrf_exempt
+def reporte_venta_parcial_html(request, num_reg):
+    num_reg = str(num_reg)
+    
+    # Traemos los datos ordenados por grupo y número de ítem
+    suministros = (
+        CotiSuministros.objects
+        .filter(num_reg=num_reg)
+        .order_by("cog", "nig", "num")
+    )
+
+    if not suministros.exists():
+        return HttpResponse("No existen suministros para este reporte", status=404)
+
+    grupos = OrderedDict()
+
+    for row in suministros:
+        if row.cog not in grupos:
+            grupos[row.cog] = {
+                "titulo_grupo": "", 
+                "envio_grupo": Decimal("0.00"),
+                "total_venta_grupo": Decimal("0.00"),
+                "items": []
+            }
+
+        # CABECERA DEL GRUPO (nig = 0)
+        if row.nig == 0:
+            grupos[row.cog]["titulo_grupo"] = row.nog or "SIN TITULO"
+            # env_tot representa el envío acumulado de este grupo
+            grupos[row.cog]["envio_grupo"] = row.env_tot or Decimal("0.00")
+            grupos[row.cog]["total_venta_grupo"] = row.tot or Decimal("0.00")
+
+        # ITEMS DEL DETALLE (nig > 0)
+        else:
+            grupos[row.cog]["items"].append({
+                "cod": row.cod,
+                "des": row.des,
+                "can": row.can or Decimal("0"),
+                "puc": row.puc or Decimal("0.00"),     # Costo Unitario Base
+                "toc": row.toc or Decimal("0.00"),     # Costo Total Base
+                "env_u": row.cost_env or Decimal("0.00"), # Costo Envío (según modal)
+                "cce": row.cost_c_env or Decimal("0.00"), # Costo con Envío
+                "util_porc": row.cau or Decimal("0.00"),  # % Utilidad
+                "util_money": row.tou or Decimal("0.00"), # Utilidad (monto unitario)
+                "val": row.val or Decimal("0.00"),        # Venta Precio Unitario
+                "tot": row.tot or Decimal("0.00")         # Venta Total
+            })
+
+    context = {
+        "num_reg": num_reg,
+        "titulo": "REPORTE DE SUMINISTROS (VENTA PARCIAL)",
+        "grupos": grupos,
+        "fecha": datetime.now()
+    }
+    
+    return render(request, "reportes/reporte_venta_parcial.html", context)
 
 #========================================================================================
 

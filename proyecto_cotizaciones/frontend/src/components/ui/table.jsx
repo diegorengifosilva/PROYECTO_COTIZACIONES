@@ -42,9 +42,13 @@ const Table = ({
     }
   };
 
+  // Solo resetea si la cantidad de datos cambia (ej: filtrado), 
+  // no si solo cambia el contenido de un registro (ej: edición).
   useEffect(() => {
-    setCurrentPage(1);
-  }, [data]);
+    if (data.length <= (currentPage - 1) * rowsPerPage) {
+      setCurrentPage(1);
+    }
+  }, [data.length]);
 
   const cellPaddingClass = compact
     ? "px-[6px] py-[1px] leading-none"
@@ -233,7 +237,7 @@ const Table = ({
             variant="ghost"
             size="sm"
             className="rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/30"
-            onClick={() => goToPage(currentPage - 1)}
+            onClick={() => goToPage(currentPage - 1)} // <--- Antes tenías solo (- 1)
             disabled={currentPage === 1}
           >
             {"<"}

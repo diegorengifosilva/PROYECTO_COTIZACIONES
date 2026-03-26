@@ -6,7 +6,9 @@ import uuid
 from .models import (
     seg_usuario,
     DashboardCotizacion,
+    DashboardOportunidad,
     vc_tab_areas,
+    vc_tab_cargos,
     vc_tab_clientes,
     vc_tab_clientes_d,
     vc_tab_estado,
@@ -27,7 +29,10 @@ from .models import (
     CotiMensajes,
     CotiSeguimiento,
     ObjetivoAnual,
-    ObjetivoAnualArea,  
+    ObjetivoAnualArea, 
+    Notificacion,
+    vc_tab_notas,
+    vc_mov_orden,
 )
 from django.contrib.auth import get_user_model
 from django.utils.timezone import localtime
@@ -207,6 +212,7 @@ class DashboardCotizacionModalSerializer(serializers.ModelSerializer):
             "prob",
             "tot_c",
             "cotit",
+            "tven",
             "area_codigo",
             "fpago",
             "estado_codigo",
@@ -327,6 +333,26 @@ class CotiSeguimientoSerializer(serializers.ModelSerializer):
         model = CotiSeguimiento
         fields = "__all__"
 
+class NotificacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notificacion
+        fields = "__all__"
+
+class DashboardOportunidadTablaSerializer(serializers.ModelSerializer):
+    # Incluimos las propiedades para que lleguen al frontend
+    area_nombre = serializers.ReadOnlyField()
+    estado_nombre = serializers.ReadOnlyField()
+
+    class Meta:
+        model = DashboardOportunidad
+        fields = [
+            'num_reg', 'codig', 'f_recp', 'f_visit', 'f_limit', 
+            'f_emisi', 'empre', 'nombr', 'contac', 'descr', 
+            'tipo', 'area', 'estad', 'respo', 'comen', 
+            'monto', 'tmone', 'anno_a', 'mes', 'regus',
+            'area_nombre', 'estado_nombre' # Campos extraídos de los @property
+        ]
+
 #========================================================================================
 
 ##================##
@@ -334,15 +360,50 @@ class CotiSeguimientoSerializer(serializers.ModelSerializer):
 ##================##
 # vc_tab_areas
 class AreasSerializer(serializers.ModelSerializer):
+    std = serializers.CharField(allow_null=True, required=False, allow_blank=True)
+
     class Meta:
         model = vc_tab_areas
         fields = "__all__"
 
+# vc_tab_cargos
+class CargosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = vc_tab_cargos
+        fields = "__all__"
+        
 # vc_tab_clientes
 class ClientesSerializer(serializers.ModelSerializer):
+    codigo = serializers.SerializerMethodField()
+    activo = serializers.SerializerMethodField()
+
     class Meta:
         model = vc_tab_clientes
         fields = "__all__"
+
+    def get_codigo(self, obj):
+        return str(obj.codigo).zfill(5)
+
+    def get_activo(self, obj):
+        return obj.activo == "1" or obj.activo is True
+
+    def to_internal_value(self, data):
+        if 'activo' in data:
+            data['activo'] = "1" if data['activo'] is True or data['activo'] == "1" else "0"
+        return super().to_internal_value(data)
+    
+# vc_tab_clientes_d
+class RepresentantesSerializer(serializers.ModelSerializer):
+    # Formateamos el código a 5 dígitos para la respuesta
+    codigo_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = vc_tab_clientes_d
+        fields = "__all__"
+
+    def get_codigo_display(self, obj):
+        # Usamos zfill por si quieres mostrarlo con ceros en la tabla
+        return str(obj.codigo).zfill(5)
 
 # vc_tab_estado
 class EstadoSerializer(serializers.ModelSerializer):
@@ -350,6 +411,7 @@ class EstadoSerializer(serializers.ModelSerializer):
         model = vc_tab_estado
         fields = "__all__"
 
+# vc_tab_tproveedor
 class ProveedoresSerializer(serializers.ModelSerializer):
     class Meta:
         model = vc_tab_tproveedor
@@ -515,3 +577,14 @@ class ObjetivoAnualSerializer(serializers.ModelSerializer):
 
         return instance
     
+# vc_tab_notas
+class NotasSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = vc_tab_notas
+        fields = "__all__"
+
+# vc_mov_orden
+class OrdenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = vc_mov_orden
+        fields = "__all__"

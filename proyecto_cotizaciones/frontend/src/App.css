@@ -81,3 +81,25 @@
   background: white;
   border-bottom: 1px solid #e5e7eb;
 }
+
+.ql-toolbar button:hover {
+  color: #0ea5e9 !important; /* Color sky-500 al pasar el mouse */
+}
+
+/* Estilo visual para indicar que hay una función */
+.ql-toolbar button[title]:hover::after {
+  /* Nota: El tooltip nativo 'title' no se puede estilar con CSS, 
+     pero esto asegura que el usuario sienta el feedback */
+  cursor: pointer;
+}
+
+/* Estilo para que el botón de Notas se vea igual a los otros */
+            .ql-notes::before {
+              content: "📝" !important; /* Usamos un icono de nota estándar */
+              font-size: 14px;
+              cursor: pointer;
+            }
+
+            .ql-notes:hover::before {
+              color: #0ea5e9 !important; /* Cambia a azul al pasar el mouse */
+            }

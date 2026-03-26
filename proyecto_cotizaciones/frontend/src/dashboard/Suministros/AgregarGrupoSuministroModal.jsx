@@ -7,38 +7,25 @@ import { Button } from "@/components/ui/button";
 import ModalOverlay from "../../components/ui/ModalOverlay";
 import { Layers3 } from "lucide-react"; // Iconografía moderna
 
-function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null }) {
+function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null, tipoVenta }) {
   const [form, setForm] = useState({
     tipo: "",
     nombre: "",
     cantidad: 1,
     totalGrupo: false,
     nroLineasPdf: 0,
+    costoEnvio: 0,
   });
 
   const [tiposSuministro, setTiposSuministro] = useState([]);
 
-  // ==========================
-  // Cargar tipos desde backend
-  // ==========================
   useEffect(() => {
-    if (!open) return;
-
-    const fetchTipos = async () => {
-      try {
-        const res = await api.get("/cotizaciones/tgasto/");
-        const data = Array.isArray(res.data) ? res.data : [];
-        // Concepto 0 = EQUIPOS / MATERIALES, activos = "1"
-        const activos = data.filter((t) => t.concepto === "0" && t.activo === "1");
-        setTiposSuministro(activos);
-      } catch (error) {
-        console.error("Error cargando tipos de suministro", error);
-        setTiposSuministro([]);
-      }
-    };
-
-    fetchTipos();
-  }, [open]);
+    if (open) {
+      console.log(">>> MODAL GRUPO ABIERTO <<<");
+      console.log("Prop tipoVenta recibida:", tipoVenta);
+      console.log("Grupo activo (si es edición):", grupo);
+    }
+  }, [open, tipoVenta, grupo]);
 
   // ==========================
   // Reset o carga de grupo al abrir
@@ -48,7 +35,50 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null })
 
     if (grupo) {
       const cogReal = grupo.cog;
-      const tipoCodigo = String(cogReal).slice(-2); // 🔥 01 / 02 según tu tabla
+      const tipoCodigo = String(cogReal).slice(-2);
+
+      // BUSCAR EL VALOR EN LOS CAMPOS REALES DEL MODELO
+      // Intentamos: campo del estado OR campo modelo Total OR campo modelo Parcial OR campo genérico
+      const valorEnvio = 
+        grupo.costoEnvio ?? 
+        grupo.env_tot ??   // Campo para tipoVenta "T" en tu modelo
+        grupo.env_par ??    // Campo para tipoVenta "P" en tu modelo
+        grupo.envio ?? 
+        0;
+
+      setForm({
+        tipo: tipoCodigo,
+        nombre: grupo.titulo || grupo.nog || "", // 'nog' es el nombre en el modelo
+        cantidad: grupo.cantidad || grupo.can || 1,
+        totalGrupo: !!grupo.totalGrupo,
+        nroLineasPdf: grupo.nroLineasPdf || 0,
+        costoEnvio: valorEnvio, 
+      });
+    } else {
+      setForm({
+        tipo: "",
+        nombre: "",
+        cantidad: 1,
+        totalGrupo: false,
+        nroLineasPdf: 0,
+        costoEnvio: 0,
+      });
+    }
+  }, [open, grupo]);
+
+  // ==========================
+  // Reset o carga de grupo al abrir
+  // ==========================
+  useEffect(() => {
+    if (!open) return;
+
+    if (grupo) {
+      const cogReal = grupo.cog;
+      const tipoCodigo = String(cogReal).slice(-2);
+
+      // CORRECCIÓN: Intentamos capturar el valor de envío desde cualquier posible origen
+      // que use el componente padre o el backend
+      const valorEnvio = grupo.costoEnvio ?? grupo.envio ?? grupo.cost_env ?? 0;
 
       setForm({
         tipo: tipoCodigo,
@@ -56,15 +86,16 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null })
         cantidad: grupo.cantidad || 1,
         totalGrupo: !!grupo.totalGrupo,
         nroLineasPdf: grupo.nroLineasPdf || 0,
+        costoEnvio: valorEnvio, // <-- Ahora sí cargará el valor existente
       });
     } else {
-      // ➕ Modo creación
       setForm({
         tipo: "",
         nombre: "",
         cantidad: 1,
         totalGrupo: false,
         nroLineasPdf: 0,
+        costoEnvio: 0,
       });
     }
   }, [open, grupo]);
@@ -82,7 +113,9 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null })
 
     onConfirm({
       ...form,
-      _key: grupo?.cog, // 🔹 clave usada para identificar edición
+      cost_env: form.costoEnvio, // Enviamos ambos para asegurar compatibilidad con tu backend/padre
+      envio: form.costoEnvio,
+      _key: grupo?.cog, 
     });
 
     onClose();
@@ -173,6 +206,38 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null })
                 className="text-xs font-bold focus:ring-teal-500/20"
               />
             </div>
+
+            {/* Si tipoVenta "T" */}
+            {tipoVenta === "T" && (
+              <InputField
+                inline
+                size="sm"
+                type="number"
+                step="0.01"
+                label="Costo Envío Total:"
+                name="costoEnvio"
+                value={form.costoEnvio}
+                onChange={handleChange}
+                placeholder="0.00"
+                className="text-xs font-bold focus:ring-blue-500/20 border-blue-200 bg-white"
+              />
+            )}
+
+            {/* Si tipoVenta "P" */}
+            {tipoVenta === "P" && (
+              <InputField
+                inline
+                size="sm"
+                type="number"
+                step="0.01"
+                label="Costo Envío por Item:"
+                name="costoEnvio"
+                value={form.costoEnvio}
+                onChange={handleChange}
+                placeholder="0.00"
+                className="text-xs font-bold focus:ring-blue-500/20 border-blue-200 bg-white"
+              />
+            )}
 
             {/* TOTAL POR GRUPO (CHECKBOX ESTILIZADO) */}
             <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm group hover:border-teal-600 transition-colors">

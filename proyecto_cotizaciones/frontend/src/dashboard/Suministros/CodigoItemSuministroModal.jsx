@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-} from "@/components/ui/dialog";
+import React, { useState, useEffect, useCallback } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import InputField from "@/components/ui/InputField";
 import api from "@/services/api";
-import { Search, Hash } from "lucide-react";
+import { Search, Hash, Loader2, PackageX } from "lucide-react";
 
-// tablas
+// Tablas
 import TablaRittal from "./tables/TablaRittal";
 import TablaPhoenix from "./tables/TablaPhoenix";
-import TablaOtros from "./tables/TablaOtros";   // OTROS
-import TablaAlmLista from "./tables/TablaAlmLista";   // SCHNEIDER / LS
+import TablaOtros from "./tables/TablaOtros";
+import TablaAlmLista from "./tables/TablaAlmLista";
 
 export default function CodigoItemSuministroModal({
   open,
@@ -26,154 +22,87 @@ export default function CodigoItemSuministroModal({
   const [buscar, setBuscar] = useState("");
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [cantidad, setCantidad] = useState(1);
 
   // ==========================
-  // FETCH
+  // LÓGICA DE BÚSQUEDA (CON DEBOUNCE MANUAL)
   // ==========================
-  const fetchItems = async (texto = "") => {
+  const fetchItems = useCallback(async (texto = "") => {
     if (!endpoint) return;
 
     setLoading(true);
     try {
-      const search = texto
-        ? texto.trim().toUpperCase()
-        : "";
-
+      const searchStr = texto.trim().toUpperCase();
       const res = await api.get(endpoint, {
-        params: search ? { search } : { limit: 20 },
+        params: searchStr ? { search: searchStr } : { limit: 20 },
       });
-
       setRegistros(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.error("Error cargando items", error);
+      console.error("❌ Error cargando items", error);
       setRegistros([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [endpoint]);
 
-  // ==========================
-  // AL ABRIR MODAL
-  // ==========================
+  // Efecto para búsqueda con retraso (Debounce)
   useEffect(() => {
     if (!open) return;
-    setBuscar("");
-    fetchItems();
-  }, [open, endpoint]);
+    
+    const delayDebounceFn = setTimeout(() => {
+      fetchItems(buscar);
+    }, 400); // Espera 400ms después de que el usuario deja de escribir
 
-  // ==========================
-  // BUSCAR
-  // ==========================
+    return () => clearTimeout(delayDebounceFn);
+  }, [buscar, open, fetchItems]);
+
+  // Reset al abrir
   useEffect(() => {
-    if (!buscar.trim()) return;
-    fetchItems(buscar);
-  }, [buscar]);
+    if (open) setBuscar("");
+  }, [open]);
 
-  if (!open) return null;
+  // Manejador único de selección
+  const handleSelect = (item) => {
+    onSelect(item);
+    onClose();
+  };
 
-  // ==========================
-  // TABLA SEGÚN PROVEEDOR
-  // ==========================
-  const renderTabla = () => {
+  const commonProps = {
+    registros,
+    loading,
+    tcamb,
+    proveedor,
+    onSelect: handleSelect,
+  };
+
+  const renderContenidoTabla = () => {
+    if (loading && registros.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin text-teal-500 mb-2" />
+          <span className="text-xs font-bold uppercase tracking-widest">Buscando suministros...</span>
+        </div>
+      );
+    }
+
+    if (!loading && registros.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+          <PackageX className="w-8 h-8 mb-2 opacity-20" />
+          <span className="text-xs font-bold uppercase tracking-widest">No se encontraron resultados</span>
+        </div>
+      );
+    }
+
     switch (proveedor) {
-
-      // ==========================
-      // RITTAL
-      // ==========================
-      case "03":
-        return (
-          <TablaRittal
-            registros={registros}
-            loading={loading}
-            tcamb={tcamb}
-            cantidad={cantidad}
-            proveedor={proveedor}
-            onSelect={(item) => {
-              console.log("📦 ITEM FINAL SELECCIONADO:", item);
-              onSelect(item);
-              onClose();
-            }}
-          />
-        );
-
-      // ==========================
-      // PHOENIX CONTACT
-      // ==========================
-      case "05":
-        return (
-          <TablaPhoenix
-            registros={registros}
-            loading={loading}
-            tcamb={tcamb}
-            cantidad={cantidad}
-            proveedor={proveedor}
-            onSelect={(item) => {
-              console.log("📦 ITEM FINAL SELECCIONADO:", item);
-              onSelect(item);
-              onClose();
-            }}
-          />
-        );
-
-      // ==========================
-      // SCHNEIDER / LS
-      // ==========================
-      case "06": // Schneider
-        return (
-          <TablaAlmLista
-            registros={registros}
-            loading={loading}
-            tcamb={tcamb}
-            cantidad={cantidad}
-            proveedor={proveedor}
-            onSelect={(item) => {
-              console.log("📦 ITEM FINAL SELECCIONADO:", item);
-              onSelect(item);
-              onClose();
-            }}
-          />
-        );
-
-      case "07": // LS Industrial Systems
-        return (
-          <TablaAlmLista
-            registros={registros}
-            loading={loading}
-            tcamb={tcamb}
-            cantidad={cantidad}
-            proveedor={proveedor}
-            onSelect={(item) => {
-              console.log("📦 ITEM FINAL SELECCIONADO:", item);
-              onSelect(item);
-              onClose();
-            }}
-          />
-        );
-
-      // ==========================
-      // OTROS
-      // ==========================
-      case "99":
-        return (
-          <TablaOtros
-            registros={registros}
-            loading={loading}
-            tcamb={tcamb}
-            cantidad={cantidad}
-            proveedor={proveedor}
-            onSelect={(item) => {
-              console.log("📦 ITEM FINAL SELECCIONADO:", item);
-              onSelect(item);
-              onClose();
-            }}
-          />
-        );
-
+      case "03": return <TablaRittal {...commonProps} />;
+      case "05": return <TablaPhoenix {...commonProps} />;
+      case "06":
+      case "07": return <TablaAlmLista {...commonProps} />;
+      case "99": return <TablaOtros {...commonProps} />;
       default:
         return (
-          <div className="text-center text-sm text-neutral-500 py-6">
-            Proveedor no soportado aún
+          <div className="text-center text-[10px] font-bold text-slate-400 py-10 uppercase tracking-tighter">
+            Configuración de marca no disponible
           </div>
         );
     }
@@ -183,57 +112,59 @@ export default function CodigoItemSuministroModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl bg-white rounded-2xl shadow-2xl border-none p-0 overflow-hidden font-sans">
         
-        {/* HEADER MODERNO */}
+        {/* HEADER */}
         <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-100 text-[#0d767e] rounded-lg">
-              <Hash size={20} strokeWidth={2.5} />
+            <div className="p-2 bg-teal-100 text-[#0d767e] rounded-lg shadow-sm">
+              <Hash size={18} strokeWidth={2.5} />
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                Búsqueda de códigos
+                Catálogo de Artículos
               </h3>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                Selección de identificadores del sistema
+                Filtrando por código o descripción técnica
               </p>
             </div>
           </div>
         </div>
 
-        {/* CONTENIDO PRINCIPAL (p-2 para consistencia total) */}
         <div className="p-2 space-y-2">
-          
-          {/* PANEL BUSCADOR ENCAPSULADO */}
+          {/* BUSCADOR */}
           <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 shadow-inner">
-            <div className="flex gap-4 items-end">
-              
-              <div className="flex-1">
+            <div className="flex gap-4 items-center">
+              <div className="flex-1 relative">
                 <InputField
                   inline
                   size="sm"
-                  label="Búsqueda:"
+                  label="Buscar:"
                   value={buscar}
                   onChange={(e) => setBuscar(e.target.value)}
-                  placeholder="Escriba código o nombre..."
-                  className="text-xs font-semibold focus:ring-teal-500/20 bg-white"
-                  trailingIcon={<Search size={14} className="text-slate-400" />}
+                  placeholder="Ej: Contactor, 100-C09, Borna..."
+                  className="text-xs font-semibold focus:ring-teal-500/20 bg-white pr-10"
                 />
+                {loading && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-3 h-3 animate-spin text-teal-600" />
+                  </div>
+                )}
               </div>
 
               <Button
                 variant="ghost"
                 onClick={onClose}
-                className="text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-red-700 hover:bg-red-100 rounded-xl transition-all"
+                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl px-4"
               >
-                Salir
+                Cerrar
               </Button>
             </div>
           </div>
 
-          {/* ÁREA DE TABLA */}
-          <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm max-h-[320px]">
-            {/* renderTabla() debería seguir el estilo de filas con hover teal */}
-            {renderTabla()}
+          {/* ÁREA DE TABLA - Con Scroll Suave */}
+          <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+            <div className="max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+              {renderContenidoTabla()}
+            </div>
           </div>
         </div>
 

@@ -108,36 +108,40 @@ function RegistroItemManoObraModal({ open, onClose, onConfirm, item, areaCotizac
 
     const dias = toNumber(next.dias);
     const hombres = toNumber(next.hombres);
+    const horas = toNumber(next.horas); // Mapeado por si lo usas luego
     const costoDia = toNumber(next.costoDia);
-    let utilidad = toNumber(next.utilidad);
+    
     let porcentaje = toNumber(next.porcentaje);
+    let utilidad = toNumber(next.utilidad);
 
-    // 🔹 Si editan porcentaje → recalcula utilidad
-    if (campoModificado === "porcentaje" && costoDia > 0) {
-      utilidad = (porcentaje * costoDia) / 100;
+    // ==========================================
+    // 1️⃣ REGLA DE ORO: EL PORCENTAJE MANDA
+    // ==========================================
+    
+    // Si cambia el Costo o cambia el Porcentaje -> La utilidad SE RECALCULA
+    if (campoModificado === "costoDia" || campoModificado === "porcentaje" || campoModificado === null) {
+      utilidad = (costoDia * porcentaje) / 100;
       next.utilidad = utilidad.toFixed(2);
+    } 
+    
+    // Si el usuario decide forzar una UTILIDAD manual (Excepción)
+    // Recalculamos el porcentaje para mantener la coherencia visual
+    else if (campoModificado === "utilidad") {
+      if (costoDia > 0) {
+        porcentaje = (utilidad / costoDia) * 100;
+        next.porcentaje = porcentaje.toFixed(2);
+      }
     }
 
-    // 🔹 Si editan utilidad → recalcula porcentaje
-    if (campoModificado === "utilidad" && costoDia > 0) {
-      porcentaje = (utilidad / costoDia) * 100;
-      next.porcentaje = porcentaje.toFixed(2);
-    }
-
-    // 🔹 Si cambian costoDia
-    if (campoModificado === "costoDia" && costoDia > 0) {
-      porcentaje = utilidad > 0
-        ? (utilidad / costoDia) * 100
-        : porcentaje;
-
-      next.porcentaje = porcentaje.toFixed(2);
-    }
-
+    // ==========================================
+    // 2️⃣ CÁLCULO DE TOTALES (CADENA)
+    // ==========================================
     const costoTotal = costoDia * dias * hombres;
     const cotizadoDia = costoDia + utilidad;
     const cotizadoTotal = cotizadoDia * dias * hombres;
     const utilidadTotal = utilidad * dias * hombres;
 
+    // Seteo de valores con precisión de 2 decimales
     next.costoTotal = costoTotal.toFixed(2);
     next.cotizadoDia = cotizadoDia.toFixed(2);
     next.cotizadoTotal = cotizadoTotal.toFixed(2);
@@ -196,10 +200,14 @@ function RegistroItemManoObraModal({ open, onClose, onConfirm, item, areaCotizac
 
             <div className="grid grid-cols-2 gap-4">
               <SelectField
-                inline size="sm" label="Área ejecuta:" name="area"
+                inline 
+                size="sm" 
+                label="Área ejecuta:" 
+                name="area"
                 value={form.area}
-                onChange={(e) => setForm(prev => ({ ...prev, area: e.target.value }))}
+                onChange={() => {}} 
                 options={areas.map(a => ({ id: a.codigo, nombre: a.nombre }))}
+                disabled={true}
                 className="text-xs font-semibold focus:ring-teal-500/20"
               />
 

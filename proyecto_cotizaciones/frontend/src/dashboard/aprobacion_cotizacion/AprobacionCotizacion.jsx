@@ -18,7 +18,9 @@ import { useNavigate } from "react-router-dom";
 import CotizacionNuevaModal from "./CotizacionNuevaModal";
 import TablaCoti from "../../components/TablaCoti";
 import TablaHistorial from "../../components/TablaHistorial";
+import TablaOportunidades from "../../components/TablaOportunidades";
 import KpisCotizaciones from "../../components/KpisCotizaciones";
+import OportunidadesModal from "./OportunidadesModal";
 
 const fetchCotizacionesAprobacion = async ({ queryKey }) => {
   const [_key, params, tab] = queryKey;
@@ -69,6 +71,52 @@ const fetchCotizacionesAprobacion = async ({ queryKey }) => {
   };
 };
 
+const fetchOportunidadesDashboard = async ({ queryKey }) => {
+  const [_key, params, tab] = queryKey;
+  const token = localStorage.getItem("access_token");
+  let nombUsuario = null;
+
+  // 1. Obtener usuario si estamos en la pestaña personal
+  if (tab === "mis_oportunidades") {
+    const usuarioRes = await api.get("usuario-actual/", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    nombUsuario = usuarioRes.data?.usuario_usu?.trim()?.toUpperCase();
+  }
+
+  // 2. Llamada al nuevo endpoint que creamos
+  const { data } = await api.get(
+    "cotizaciones/oportunidades", 
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      params, // Aquí viajan anno, mes, etc.
+    }
+  );
+
+  const tabla = Array.isArray(data?.tabla) ? data.tabla : [];
+  const dashboard = data?.dashboard || {};
+
+  // 3. Limpieza de datos (Data Mapping)
+  let dataLimpia = tabla.map(item => ({
+    ...item,
+    nombr: item.nombr?.trim() || "S/N",
+    area_nombre: item.area_nombre || "OTRO",
+    estado_nombre: item.estado_nombre || "PENDIENTE",
+  }));
+
+  // 4. Filtro de seguridad por usuario en el cliente
+  if (tab === "mis_oportunidades" && nombUsuario) {
+    dataLimpia = dataLimpia.filter(
+      i => i.regus?.trim()?.toUpperCase() === nombUsuario
+    );
+  }
+
+  return {
+    oportunidades: dataLimpia,
+    stats: dashboard,
+  };
+};
+
 export default function AprobacionCotizacion() {
   const { authUser: user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -90,67 +138,90 @@ export default function AprobacionCotizacion() {
     index: 1, num_regs: 10,
   };
 
-const [filtersByTab, setFiltersByTab] = useState({
-  cotizaciones: filtrosDefault,
-  mis_cotizaciones: filtrosDefault,
-  resumen: filtrosDefault,
-});
+  const [filtersByTab, setFiltersByTab] = useState({
+    cotizaciones: filtrosDefault,
+    mis_cotizaciones: filtrosDefault,
+    resumen: filtrosDefault,
+  });
 
   const [tabActiva, setTabActiva] = useState("cotizaciones");
   const currentFilters = filtersByTab[tabActiva] || filtrosDefault;
-
-  const [clientesMap, setClientesMap] = useState({});
-  const queryClient = useQueryClient();
+  // ── QUERY 1: COTIZACIONES ──────────────────────────────────
   const {
-    data,
-    isLoading,
-    isFetching,
-    error,
+    data: dataCotiz,
+    isLoading: isLoadingCotiz,
+    isFetching: isFetchingCotiz,
+    error: errorCotiz,
   } = useQuery({
     queryKey: ["aprobacion-cotizaciones", currentFilters, tabActiva],
     queryFn: fetchCotizacionesAprobacion,
     keepPreviousData: true,
+    enabled: tabActiva.includes("cotizacion") || tabActiva === "resumen"
   });
-  const cotizaciones = data?.cotizaciones || [];
-  const stats = data?.stats || {};
+  const cotizaciones = dataCotiz?.cotizaciones || [];
+  const stats = dataCotiz?.stats || {};
+  //const cotizaciones = data?.cotizaciones || [];
+  //const stats = data?.stats || {};
+
+  // ── QUERY 2: OPORTUNIDADES ─────────────────────────────────
+  const { 
+    data: dataOp, 
+    isLoading: isLoadingOp, 
+    isFetching: isFetchingOp 
+  } = useQuery({
+    // Usamos currentFilters.anno y currentFilters.mes que ya vienen del estado por pestaña
+    queryKey: ["oportunidades", { anno: currentFilters.anno, mes: currentFilters.mes }, tabActiva],
+    queryFn: fetchOportunidadesDashboard,
+    keepPreviousData: true,
+    enabled: tabActiva.includes("oportunidades")
+  });
+
+  const oportunidades = dataOp?.oportunidades || [];
+  const statsOp = dataOp?.stats || {};
+  // Unificamos estados para la UI (Evita el ReferenceError)
+  const isFetching = isFetchingCotiz || isFetchingOp;
+  const isLoading = isLoadingCotiz || isLoadingOp;
+
+  const [clientesMap, setClientesMap] = useState({});
+  const queryClient = useQueryClient();
+
+  // ── LÓGICA DE FILTRADO (MEMO) ──────────────────────────────
+  const cotizacionesFiltradas = useMemo(() => {
+    let data = [...cotizaciones];
+    if (tabActiva === "mis_cotizaciones" && usuarioActual) {
+      data = data.filter(c => c.regus?.trim().toUpperCase() === usuarioActual.trim().toUpperCase());
+    }
+    data = data.filter(c => {
+      const pasaEstado = filtro === "Todos" || c.estado_nombre === filtro;
+      const pasaFecha = (!fechaInicio || new Date(c.cotif) >= new Date(fechaInicio)) &&
+                        (!fechaFin || new Date(c.cotif) <= new Date(fechaFin));
+      return pasaEstado && pasaFecha;
+    });
+    return data.sort((a, b) => new Date(b.cotif) - new Date(a.cotif));
+  }, [cotizaciones, filtro, fechaInicio, fechaFin, tabActiva, usuarioActual]);
+
+  const oportunidadesFiltradas = useMemo(() => {
+    let data = [...oportunidades];
+    if (tabActiva === "mis_oportunidades" && usuarioActual) {
+      data = data.filter(o => o.regus?.trim().toUpperCase() === usuarioActual.trim().toUpperCase());
+    }
+    data = data.filter(o => {
+      const pasaEstado = filtro === "Todos" || o.estado_nombre === filtro;
+      const pasaFecha = (!fechaInicio || new Date(o.f_recp) >= new Date(fechaInicio)) &&
+                        (!fechaFin || new Date(o.f_recp) <= new Date(fechaFin));
+      return pasaEstado && pasaFecha;
+    });
+    return data.sort((a, b) => new Date(b.f_recp) - new Date(a.f_recp));
+  }, [oportunidades, filtro, fechaInicio, fechaFin, tabActiva, usuarioActual]);
 
   const { scrollY } = useScroll();
   const shadowOpacity = useTransform(scrollY, [0, 50], [0, 0.25]);
   const blurValue = useTransform(scrollY, [0, 100], [4, 8]);
 
-  // Efecto scroll flotante
-  useEffect(() => {
-    const onScroll = () => {
-      shadowOpacity.set(Math.min(window.scrollY / 150, 0.2));
-      blurValue.set(Math.min(window.scrollY / 100, 8));
-    };
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [shadowOpacity, blurValue]);
 
-  const cotizacionesFiltradas = useMemo(() => {
-    let data = [...cotizaciones];
 
-    // 🔥 FILTRO POR USUARIO SOLO EN MIS COTIZACIONES
-    if (tabActiva === "mis_cotizaciones" && usuarioActual) {
-      data = data.filter(
-        (c) =>
-          c.regus?.trim().toUpperCase() ===
-          usuarioActual.trim().toUpperCase()
-      );
-    }
 
-    // 🔥 FILTROS EXISTENTES
-    data = data.filter((c) => {
-      const pasaEstado = filtro === "Todos" || c.estado_nombre === filtro;
-      const pasaFecha =
-        (!fechaInicio || new Date(c.cotif) >= new Date(fechaInicio)) &&
-        (!fechaFin || new Date(c.cotif) <= new Date(fechaFin));
-      return pasaEstado && pasaFecha;
-    });
 
-    return data.sort((a, b) => new Date(b.cotif) - new Date(a.cotif));
-  }, [cotizaciones, filtro, fechaInicio, fechaFin, tabActiva, usuarioActual]);
 
   // Mapeo  de Clientes
   useEffect(() => {
@@ -382,7 +453,7 @@ const [filtersByTab, setFiltersByTab] = useState({
           <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
             {[
               { id: "resumen", label: "Resumen", icon: <Globe size={16} /> },
-              { id: "mis_cotizaciones", label: "Mis Cotizaciones", icon: <Layout size={16} /> },
+              { id: "oportunidades", label: "Oportunidades", icon: <Layout size={16} /> },
               { id: "cotizaciones", label: "Cotizaciones", icon: <ListTodo size={16} /> },
               { id: "historial", label: "Historial", icon: <History size={16} /> },
             ].map((tab) => {
@@ -424,7 +495,7 @@ const [filtersByTab, setFiltersByTab] = useState({
         </motion.div>
 
         {/* CONTENIDO DINÁMICO */}
-        <div className="flex-1 min-h-0 overflow-hidden"> {/* Contenedor maestro sin scroll */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           
           {tabActiva === "resumen" && (
             <div className="h-full overflow-y-auto p-6 custom-scrollbar">
@@ -439,8 +510,8 @@ const [filtersByTab, setFiltersByTab] = useState({
             </div>
           )}
 
-          {(tabActiva === "mis_cotizaciones" || tabActiva === "cotizaciones") && (
-            <div className="h-full flex flex-col p-6 pb-2"> {/* Padding inferior reducido para la leyenda */}
+          {tabActiva === "cotizaciones" && (
+            <div className="h-full flex flex-col p-6 pb-2">
               <TablaCoti
                 data={cotizacionesFiltradas}
                 clientesMap={clientesMap}
@@ -451,19 +522,15 @@ const [filtersByTab, setFiltersByTab] = useState({
                 }}
                 getEnvioColor={getEnvioColor}
                 getEnvioNombre={getEnvioNombre}
-                
-                // Badge de filtros: Abstraído
                 activeFiltersCount={Object.values(currentFilters).filter(v => 
                   v !== "%" && v !== "" && v !== annoActual
                 ).length}
-                
                 onClearFilters={() =>
                   setFiltersByTab(prev => ({
                     ...prev,
-                    [tabActiva]: filtrosDefault,
+                    cotizaciones: filtrosDefault,
                   }))
                 }
-                
                 filterComponent={
                   <FilterCard
                     dashboard="aprobacion-cotizaciones"
@@ -486,11 +553,58 @@ const [filtersByTab, setFiltersByTab] = useState({
                           ...(filters.fechaInicio ? { fechaInicio: filters.fechaInicio } : {}),
                           ...(filters.fechaFin ? { fechaFin: filters.fechaFin } : {}),
                         };
+                        setFiltersByTab(prev => ({ ...prev, cotizaciones: { ...prev.cotizaciones, ...params } }));
+                      } finally {
+                        setProcessingFilters(false);
+                      }
+                    }}
+                  />
+                }
+              />
+            </div>
+          )}
 
-                        setFiltersByTab(prev => ({
-                          ...prev,
-                          [tabActiva]: { ...prev[tabActiva], ...params }
-                        }));
+          {tabActiva === "oportunidades" && (
+            <div className="h-full flex flex-col p-6 pb-2">
+              <TablaOportunidades
+                data={oportunidadesFiltradas}
+                isFetching={isFetching}
+                onRowClick={(o) => {
+                  setOportunidadSeleccionada(o);
+                  setDetalleOportunidadOpen(true);
+                }}
+                activeFiltersCount={Object.values(currentFilters).filter(v => 
+                  v !== "%" && v !== "" && v !== annoActual
+                ).length}
+                onClearFilters={() =>
+                  setFiltersByTab(prev => ({
+                    ...prev,
+                    oportunidades: filtrosDefault,
+                  }))
+                }
+                filterComponent={
+                  <FilterCard
+                    dashboard="gestion-oportunidades"
+                    className="w-full bg-transparent shadow-none border-none p-0"
+                    compact
+                    processing={processingFilters}
+                    onReport={handleReport}
+                    onProcess={async (filters, event) => {
+                      if (event) event.preventDefault();
+                      setProcessingFilters(true);
+                      try {
+                        const params = {
+                          anno: filters.anio || annoActual,
+                          mes: filters.mes || "%",
+                          cliente: filters.cliente || "%",
+                          estado: filters.estado || "%",
+                          area: filters.area || "%",
+                          // En oportunidades quizás no usas 'envio', pero mantenemos la estructura
+                          ...(filters.campo && filters.valor ? { campo: filters.campo, valor: filters.valor } : {}),
+                          ...(filters.fechaInicio ? { fechaInicio: filters.fechaInicio } : {}),
+                          ...(filters.fechaFin ? { fechaFin: filters.fechaFin } : {}),
+                        };
+                        setFiltersByTab(prev => ({ ...prev, oportunidades: { ...prev.oportunidades, ...params } }));
                       } finally {
                         setProcessingFilters(false);
                       }
@@ -515,6 +629,7 @@ const [filtersByTab, setFiltersByTab] = useState({
           modo="A"
           tipo="N"
           dashboard="A"
+          cotizaciones={cotizaciones}
         />
 
         {cotizacionSeleccionada && (

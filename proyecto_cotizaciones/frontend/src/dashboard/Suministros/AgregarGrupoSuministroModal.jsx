@@ -17,89 +17,58 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null, t
     costoEnvio: 0,
   });
 
-  const [tiposSuministro, setTiposSuministro] = useState([]);
+  // Si eran datos fijos, defínelos aquí directamente
+  const [tiposSuministro, setTiposSuministro] = useState([
+    { codigo: "01", nombre: "EQUIPOS" }, 
+    { codigo: "02", nombre: "MATERIALES" }
+  ]);
 
-  useEffect(() => {
-    if (open) {
-      console.log(">>> MODAL GRUPO ABIERTO <<<");
-      console.log("Prop tipoVenta recibida:", tipoVenta);
-      console.log("Grupo activo (si es edición):", grupo);
-    }
-  }, [open, tipoVenta, grupo]);
+  const [gruposSuministros, setGruposSuministros] = useState([]);
 
   // ==========================
-  // Reset o carga de grupo al abrir
+  // UNICO EFECTO: Carga de datos al abrir
   // ==========================
   useEffect(() => {
     if (!open) return;
 
     if (grupo) {
+
       const cogReal = grupo.cog;
       const tipoCodigo = String(cogReal).slice(-2);
 
-      // BUSCAR EL VALOR EN LOS CAMPOS REALES DEL MODELO
-      // Intentamos: campo del estado OR campo modelo Total OR campo modelo Parcial OR campo genérico
-      const valorEnvio = 
-        grupo.costoEnvio ?? 
-        grupo.env_tot ??   // Campo para tipoVenta "T" en tu modelo
-        grupo.env_par ??    // Campo para tipoVenta "P" en tu modelo
-        grupo.envio ?? 
-        0;
+      // Usamos Number() para evitar problemas si vienen como Strings desde la DB
+      const vTot = Number(grupo.env_tot || 0);
+      const vPar = Number(grupo.env_par || 0);
+      const vCost = Number(grupo.cost_env || 0);
+
+      // Lógica de decisión con log
+      let valorFinal = 0;
+      if (tipoVenta === "T") {
+        valorFinal = vTot || vCost;
+        console.log("-> Eligiendo TOTAL. Resultado:", valorFinal);
+      } else {
+        valorFinal = vPar || vCost;
+        console.log("-> Eligiendo PARCIAL. Resultado:", valorFinal);
+      }
 
       setForm({
         tipo: tipoCodigo,
-        nombre: grupo.titulo || grupo.nog || "", // 'nog' es el nombre en el modelo
+        nombre: grupo.titulo || grupo.nog || "", 
         cantidad: grupo.cantidad || grupo.can || 1,
-        totalGrupo: !!grupo.totalGrupo,
+        totalGrupo: !!grupo.totalGrupo || grupo.tog === 1,
         nroLineasPdf: grupo.nroLineasPdf || 0,
-        costoEnvio: valorEnvio, 
+        costoEnvio: valorFinal, 
       });
+      
+      console.log("=== FORMULARIO SETEADO CON:", valorFinal, "===");
+
     } else {
       setForm({
-        tipo: "",
-        nombre: "",
-        cantidad: 1,
-        totalGrupo: false,
-        nroLineasPdf: 0,
-        costoEnvio: 0,
+        tipo: "", nombre: "", cantidad: 1, totalGrupo: false, nroLineasPdf: 0, costoEnvio: 0,
       });
     }
-  }, [open, grupo]);
+  }, [open, grupo, tipoVenta]);
 
-  // ==========================
-  // Reset o carga de grupo al abrir
-  // ==========================
-  useEffect(() => {
-    if (!open) return;
-
-    if (grupo) {
-      const cogReal = grupo.cog;
-      const tipoCodigo = String(cogReal).slice(-2);
-
-      // CORRECCIÓN: Intentamos capturar el valor de envío desde cualquier posible origen
-      // que use el componente padre o el backend
-      const valorEnvio = grupo.costoEnvio ?? grupo.envio ?? grupo.cost_env ?? 0;
-
-      setForm({
-        tipo: tipoCodigo,
-        nombre: grupo.titulo || "",
-        cantidad: grupo.cantidad || 1,
-        totalGrupo: !!grupo.totalGrupo,
-        nroLineasPdf: grupo.nroLineasPdf || 0,
-        costoEnvio: valorEnvio, // <-- Ahora sí cargará el valor existente
-      });
-    } else {
-      setForm({
-        tipo: "",
-        nombre: "",
-        cantidad: 1,
-        totalGrupo: false,
-        nroLineasPdf: 0,
-        costoEnvio: 0,
-      });
-    }
-  }, [open, grupo]);
-  
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
@@ -111,13 +80,17 @@ function AgregarGrupoSuministroModal({ open, onClose, onConfirm, grupo = null, t
   const handleSubmit = () => {
     if (!form.tipo) return;
 
-    onConfirm({
+    const datosAEnviar = {
       ...form,
-      cost_env: form.costoEnvio, // Enviamos ambos para asegurar compatibilidad con tu backend/padre
-      envio: form.costoEnvio,
+      // Aseguramos que el padre reciba el valor en el campo correcto
+      env_tot: tipoVenta === "T" ? Number(form.costoEnvio) : 0,
+      env_par: tipoVenta === "P" ? Number(form.costoEnvio) : 0,
+      cost_env: Number(form.costoEnvio),
+      nog: form.nombre, // Para compatibilidad con lo que vi en tu useEffect
       _key: grupo?.cog, 
-    });
+    };
 
+    onConfirm(datosAEnviar);
     onClose();
   };
 

@@ -43,8 +43,6 @@ export default function ClientesChart({ data = [] }) {
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
 
-    console.log("DATA EN CLIENTES_CHART:", data);
-
     return data.map(item => ({
       ...item,
       nombre: item.nombre || "Desconocido", 

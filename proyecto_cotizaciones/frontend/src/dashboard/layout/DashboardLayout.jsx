@@ -164,9 +164,7 @@ export default function DashboardLayout() {
   // ================================
   useEffect(() => {
     const openSearch = () => {
-      console.log("🔎 DashboardLayout → abrir buscador global");
-      // luego aquí abrirás el modal real
-      // setOpenGlobalSearch(true);
+
     };
 
     window.addEventListener("pm:open-search", openSearch);

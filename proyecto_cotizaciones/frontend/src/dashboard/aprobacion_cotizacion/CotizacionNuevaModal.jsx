@@ -36,7 +36,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { crearCotizacion } from "@/api/cotizaciones";
 import { toast } from "react-toastify";
 
-export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, tipo, dashboard, cotizaciones = [] }) {
+export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, tipo, dashboard, cotizaciones = [], esOportunidad }) {
 
   // ==========================
   // DATA INICIAL (LIMPIA)
@@ -119,13 +119,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
     // 🔹 Si tipoCodigo viene undefined (editar), lo tomamos del subgrupo
     tipoCodigo = tipoCodigo ?? subgrupo.tipoCodigo;
 
-    console.log("🚀 abrirModalRegistroPorTipo", {
-      tipoCodigo,
-      servicioId,
-      subgrupoId,
-      item,
-    });
-
     setSelectedServicioId(servicioId);
     setSelectedSubgrupoId(subgrupoId);
     setSelectedTipoCodigo(tipoCodigo);
@@ -154,11 +147,47 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
   const [tabActiva, setTabActiva] = useState("datos");
   const DASHBOARD_TABS = {
     C: ["datos", "suministros", "servicios", "gestion"],
-    R: ["datos", "suministros", "servicios", "gestion"],
-    A: ["datos", "suministros", "servicios", "gestion"],
-    S: ["datos", "suministros", "servicios"],
+    O: ["datos"],
   };
   const tabsToShow = DASHBOARD_TABS[dashboard] ?? ["datos"];
+
+  // Estado dedicado para el num_reg de oportunidad
+  const [nuevoNumOportunidad, setNuevoNumOportunidad] = useState("");
+
+  // Cuando abrimos el modal de Nuevo
+  useEffect(() => {
+    if (open) {
+      const cargarNumOportunidad = async () => {
+        try {
+          const { data } = await api.get("/siguiente_num_reg_oportunidad/");
+          console.log("Respuesta backend num_reg:", data); // <--- aquí lo ves en consola
+          setNuevoNumOportunidad(data.num_reg);
+        } catch (err) {
+          console.error("Error al obtener num_reg:", err);
+        }
+      };
+
+      cargarNumOportunidad();
+
+      // Limpiamos el resto de la data
+      setData({
+        num_reg: "", // ya no lo usamos directamente
+        fecha: new Date().toISOString().split("T")[0],
+        estado_codigo: 2,
+        tot_d: "D",
+        tot_s: "D",
+        tmone: "D",
+        tcamb: "3.362",
+        acu_s: "D",
+        nombc: "",
+        telec: "",
+        mov1c: "",
+        mov2c: "",
+        mov3c: "",
+        mailc: "",
+      });
+    }
+  }, [open]);
 
   // ==========
   // MEJORA
@@ -329,29 +358,43 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
     // 🔹 Mapear suministros para incluir subtotal en la cabecera
     const suministrosPayload = Object.fromEntries(
       Object.entries(gruposSuministros).map(([cog, grupo]) => {
-        // 🔹 Suma de totales de los items del grupo
-        const subtotalItems = grupo.items.reduce(
-          (acc, item) => acc + Number(item.tot || 0),
+        const costoEnvioGrupo = Number(grupo.costoEnvio || 0);
+        const tipoVentaGlobal = data?.tven; 
+        const itemsDelGrupo = grupo.items || [];
+
+
+        // 1️⃣ Recalculamos cada ítem usando la lógica de prorrateo por TOC
+        const itemsProcesados = itemsDelGrupo.map((item, idx) => {
+          const itemCalculado = calcularItemConEnvio(
+            item, 
+            itemsDelGrupo, 
+            costoEnvioGrupo, 
+            tipoVentaGlobal
+          );
+
+
+          return itemCalculado;
+        });
+
+        // 2️⃣ Sumatoria real de los items recalculados para el total del grupo
+        const subtotalItems = itemsProcesados.reduce(
+          (acc, item) => acc + (Number(item.tot) || 0),
           0
         );
-
-        // 🔹 Total real considerando la cantidad del grupo
-        const totalGrupo = subtotalItems * Number(grupo.cantidad || 1);
 
         return [
           cog,
           {
             ...grupo,
-
-            // 👇 IMPORTANTE: enviar explícitamente estos campos
-            costoEnvio: Number(grupo.costoEnvio || 0),
+            costoEnvio: costoEnvioGrupo,
             tipoEnvio: grupo.tipoEnvio || "TOTAL",
-
-            // 👇 total real del grupo (cabecera nig=0)
-            total: +subtotalItems.toFixed(2),
-
-            // 👇 items siempre deben viajar completos
-            items: grupo.items,
+            total: Number(subtotalItems.toFixed(2)), // Total raíz
+            // 🚩 CLAVE: Sincronizamos el header con el nuevo total para evitar el 50288.34
+            header: {
+              ...grupo.header,
+              tot: Number(subtotalItems.toFixed(2)) 
+            },
+            items: itemsProcesados, 
           },
         ];
       })
@@ -395,14 +438,77 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       })
     );
 
-    console.log("💾 TOTAL A GUARDAR:", {
-      totalSinDescuento: totalesLocales.total,
-      descuento: descuentoAplicado,
-      totalFinal,
-    });
+    // ── CONFIGURACIÓN DEL PAYLOAD DE OPORTUNIDAD (ESPEJO TOTAL) ──
+    const oportunidadPayload = {
+      // Identificación y Seguimiento
+      num_reg: nuevoNumOportunidad,
+      num_reg_cot: null,
+      cotin: data.numero || data.cotin || "", 
+      cotif: data.fecha || data.cotif,
+      refer: data.referencia || data.refer || "",
+      f_recp: data.f_recp || data.fecha, 
+      f_limite: data.f_limite || null,
+      f_emi: data.f_emi || null,
+      estado_op: Number(data.estado_op ?? 0), // 0: Pendiente por defecto
+      coment: data.coment || "",
+      
+      // Clasificación Comercial
+      prob: data.prob || "0",
+      cotit: data.cotit || "", 
+      area: data.area_codigo || data.area || "",
+      tven: data.tven || "1",
+      estad: data.estado_codigo || "2", // Estado de coti (2: Pendiente)
+      envio: Number(data.estado_op) === 3 ? 2 : 0, // 🚩 LA LÓGICA CLAVE
+
+      // Cliente y Contacto
+      empre: data.cliente_codigo || data.empre || "",
+      nombr: data.nombr || "",
+      cargr: data.cargr || "",
+      codir: data.codir || "",
+      teler: data.teler || "",
+      movir: data.movir || "",
+      mailr: data.mailr || "",
+
+      // Pago / Moneda / Totales (Pestaña DATOS)
+      tot_c: Number(data.tot_c || 0),
+      fpago: data.fpago || "",
+      lugar: data.lugar || "",
+      tmone: data.tmone || "D", // Dólares por defecto
+      tcamb: Number(data.tcamb || 0),
+      igv: data.igv || "S",
+
+      // Tiempos y Validez
+      plazo: Number(data.plazo || 0),
+      tot_d: data.tot_d || "D",
+      por_c: Number(data.por_c || 0),
+      tot_s: data.tot_s || "D",
+      valid: Number(data.valid || 0),
+      acu_s: data.acu_s || "D",
+
+      // Responsables
+      codic: data.codic || "",
+      nombc: data.nombc || "",
+      codit: data.codit || "",
+      nombt: data.nombt || "",
+
+      // Descuentos y Metadatos
+      des_a: data.des_a || "N",
+      des_t: data.des_t || "N",
+      des_m: Number(data.des_m || 0),
+      des_p: Number(data.des_p || 0),
+      acu_e: condicionesHtml || "", // El HTML de términos y condiciones
+      regus: data.regus || "",
+      anno: data.anno || new Date().getFullYear().toString(),
+      mes: data.mes || (new Date().getMonth() + 1).toString().padStart(2, '0'),
+      anno_a: data.anno_a || "2026"
+    };
+  
+    // DEBUG para que veas qué se va a la tabla vc_mov_oportunidades
+    console.log("🎯 OPORTUNIDAD PAYLOAD:", oportunidadPayload);
 
     const payload = {
       ...data,
+      num_reg: nuevoNumOportunidad,
       detalle: {
         ...data.detalle,
         // ❌ NO enviar tot_c calculado
@@ -410,6 +516,8 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       acu_e: condicionesHtml,
       suministros: suministrosPayload,
       servicios: serviciosPayload,
+      oportunidad: oportunidadPayload,
+
       descuento: {
         aplicar: descuentosForm.aplicar,
         aplicaA:
@@ -423,9 +531,9 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       },
     };
 
-    console.log("📝 PAYLOAD SUMINISTROS ANTES DE GUARDAR", suministrosPayload);
-
-    console.log("🚀 PAYLOAD FINAL ENVIADO:", payload.detalle.tot_c);
+    console.log("🎯 OPORTUNIDAD PAYLOAD:", oportunidadPayload);
+    console.log("🎯 PAYLOAD FINAL:", payload);
+    console.log("📦 PAYLOAD PARA GUARDAR:", payload);
 
     crearMutation.mutate(payload);
   };
@@ -597,8 +705,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       return gruposExistentes;
     }
 
-    console.log("💱 TCAMB recibido en buildGruposFromXLS:", tcamb);
-    console.log("📥 Iniciando importación XLS → Grupo:", grupoActivo);
     console.table(excelRows);
 
     const grupo = { ...(gruposExistentes[grupoActivo] || {}) };
@@ -640,7 +746,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
         pendienteResolver: true,
       };
 
-      console.log(`🧾 [XLS ${idx + 1}] Item base`, item);
       return item;
     });
 
@@ -653,19 +758,16 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
         // ⛔ Sin código válido
         if (!item.cod || ["S/C", "."].includes(item.cod.toUpperCase())) {
-          console.log(`⏭️ [${row}] Sin código → no se procesa`);
           return { ...item, pendienteResolver: false };
         }
 
         try {
-          console.log(`🔎 [${row}] Resolviendo TPR por código`, item.cod);
 
           const tprPorCodigo = await resolverEndpointPorCodigo(item.cod);
           let tprFinal = "";
 
           if (tprPorCodigo && tprPorCodigo !== "99") {
             tprFinal = tprPorCodigo;
-            console.log(`✅ [${row}] TPR detectado por código →`, tprFinal);
           } else {
             const tprExcel = mapProveedorExcelToTPR(item.proveedorExcel);
             tprFinal = tprExcel || "";
@@ -693,8 +795,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
           const endpoint = endpointMap[tprFinal];
           if (!endpoint) return item;
-
-          console.log(`🌐 [${row}] Buscando en`, endpoint);
 
           const res = await api.get(endpoint, { params: { search: item.cod } });
           const rows = Array.isArray(res.data) ? res.data : [];
@@ -740,13 +840,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
             };
           }
 
-          console.log(`📦 [${row}] Item encontrado`, encontrado);
-
-          console.log(
-            `💱 [${row}] TCAMB antes de calcular`,
-            { tcamb, tpr: tprFinal, cantidad: item.can }
-          );
-
           // =====================
           // Cálculo ÚNICO (tablaUtils)
           // =====================
@@ -757,8 +850,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
             item.can,
             item.proveedorExcel
           );
-
-          console.log(`🧮 [${row}] Normalizado`, calc);
 
           return {
             ...item,
@@ -796,8 +887,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
       ...item,
       nig: idx + 1,
     }));
-
-    console.log("✅ Grupo final generado:", grupo);
 
     return {
       ...gruposExistentes,
@@ -861,10 +950,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
   // Agregar o Editar Servicio
   const handleAgregarServicio = (form) => {
-    console.log("🟡 FORM RECIBIDO:", form, {
-      cantidad: form.cantidad,
-      tipo: typeof form.cantidad,
-    });
 
     setGruposServicios(prev => {
 
@@ -905,9 +990,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
           },
         },
       };
-      console.log("🟢 SERVICIO GUARDADO:", {
-        cantidad: Number(form.cantidad),
-      });
     });
   };
 
@@ -1485,7 +1567,6 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
   // DESCUENTO
   //============
   const handleGuardarDescuento = (payload) => {
-    console.log("📥 DESCUENTO RECIBIDO EN MODAL PADRE:", payload);
     setDescuentosForm(payload);
   };
 
@@ -1493,29 +1574,44 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
     <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="w-full max-w-[175vh] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg p-4">        
 
-        {/* ENCABEZADO */}
+        {/* ENCABEZADO DINÁMICO */}
         <div className="relative bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-100">
-              <LayoutDashboard className="text-white" size={24} />
+        <div className="flex items-center gap-4">
+          
+          {/* Color dinámico del Icono: Teal para Cotizaciones, Indigo para Oportunidades */}
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg 
+            ${esOportunidad 
+              ? "bg-teal-600 shadow-teal-100" 
+              : "bg-teal-600 shadow-teal-100"}`}
+          >
+            <LayoutDashboard className="text-white" size={24} />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+            {/* Título fijo */}
+            <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">
+              Nueva Oportuniad
+            </h2>
+
+            {/* Registro interno: solo de DashboardOportunidad */}
+            {nuevoNumOportunidad && (
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-200 uppercase tracking-widest">
+                {nuevoNumOportunidad}
+              </span>
+            )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">
-                  {data?.numero ? `Cotización ${data.num_reg}` : "Nueva Cotización"}
-                </h2>
-                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-200 uppercase tracking-widest">
-                  {data?.num_reg || ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
-                <p className="text-xs font-bold text-slate-600 uppercase tracking-tighter">
-                   {data?.cliente_nombre || "Esperando selección de cliente..."}
-                </p>
-              </div>
+
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {/* El punto pulsante también cambia de color */}
+              <div className={`w-2 h-2 rounded-full animate-pulse ${esOportunidad ? "bg-teal-500" : "bg-teal-500"}`} />
+              
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-tighter">
+                {data?.cliente_nombre || (esOportunidad ? "Esperando selección de prospecto..." : "Esperando selección de cliente...")}
+              </p>
             </div>
           </div>
+        </div>
 
           {/* INDICADORES RÁPIDOS (Opcional, si tienes estos datos) */}
           <div className="hidden md:flex gap-8 mr-8">
@@ -1536,6 +1632,7 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
           setData={setData}
           suministros={Array.isArray(suministros) ? suministros : []} // siempre un array
           servicios={Array.isArray(servicios) ? servicios : []}
+          esOportunidad={esOportunidad}
           modo={modo}
           esNueva={esNueva}
           esVer={esVer}
@@ -1633,7 +1730,23 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
         {/* SECCIÓN DE ACCIONES (FOOTER) - STICKY Y OPTIMIZADO */}
         <div className="sticky bottom-0 bg-slate-50/80 backdrop-blur-sm border-t border-slate-200 px-6 py-2 flex flex-col sm:flex-row justify-end items-center gap-4 shrink-0 z-10 mt-6">
-          
+
+          {/* LADO IZQUIERDO: GESTIÓN DE LA COTIZACIÓN */}
+          <div className="flex items-center gap-2">
+            {/* Contenedor sutil para botones de estado/seguimiento */}
+            <div className="flex gap-1 bg-white/50 p-1 rounded-xl border border-slate-200/60 shadow-sm">
+              
+              {/* BOTÓN CÓDIGO: SIEMPRE VISIBLE */}
+              <Button
+                variant="ghost"
+                className="text-[10px] font-black uppercase tracking-tight text-slate-600 hover:bg-slate-100 h-8 px-4 rounded-lg transition-all border border-transparent hover:border-slate-200"
+                onClick={setOpenGenerarCodigo}
+              >
+                Código
+              </Button>
+            </div>
+          </div>
+
           {/* LADO DERECHO: ACCIONES PRINCIPALES */}
           <div className="flex gap-2">
             {/* REPORTE */}

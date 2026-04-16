@@ -33,7 +33,7 @@ urlpatterns = [
 
     # OPORTUNIDADES
     path('cotizaciones/oportunidades', views.oportunidades_dashboard_view, name="oportunidades_dashboard_view"),
-
+    path('oportunidades/modal/<str:num_reg>/', views.oportunidad_detalle_view, name='oportunidad_detalle_view'),
     # BUSQUEDA
     path('clientes/<str:empresa>/encargados/', views.buscar_encargados_por_empresa, name='buscar_encargados_por_empresa'),
 
@@ -96,6 +96,9 @@ urlpatterns = [
 
     # GUARDAR COTIZACIÓN
     path("cotizaciones/guardar/", views.guardar_cotizacion, name="guardar_cotizacion"),
+
+    # SIGUIENTE NUM_REG OPORTUNIDAD
+    path("siguiente_num_reg_oportunidad/", views.obtener_siguiente_num_reg_oportunidad, name="obtener_siguiente_num_reg_oportunidad"),
 
     # REPORTES
     path("cotizaciones/reportes/reporte_cotizaciones_dashboard_html/", views.reporte_cotizaciones_dashboard_html, name="reporte_cotizaciones_dashboard_html"),

@@ -13,6 +13,7 @@ export default function CondicionesModal({
   onClose,
   condicionesIniciales,
   onAceptar,
+  tipoVenta,
 }) {
   const [texto, setTexto] = useState("");
   const [saving, setSaving] = useState(false);
@@ -40,54 +41,95 @@ export default function CondicionesModal({
   // 2. FUNCIÓN PARA INSERTAR LAS NOTAS SELECCIONADAS
   const handleInsertarNotas = (textos) => {
     const quill = quillRef.current.getEditor();
+    // Obtenemos la selección o el final del texto
     const range = quill.getSelection() || { index: quill.getLength() };
 
     textos.forEach((t) => {
-      // 1. Insertamos un salto de línea inicial
-      quill.insertText(range.index, "\n");
+      // 1. Preparamos el texto: Lo ponemos en negrita y negro para Word
+      // Agregamos un espacio al inicio para que no pegue el texto al bullet
+      const notaTexto = `${t}\n`;
       
-      // 2. Insertamos el texto con el color Teal específico
-      const notaTexto = ` NOTA TÉCNICA: ${t} `;
-      quill.insertText(range.index + 1, notaTexto, {
-        bold: true,
-        color: "#0d9488", 
+      // 2. Insertamos el texto con formato diferencial (Negrita)
+      quill.insertText(range.index, notaTexto, {
+        bold: true,      // <--- Esto lo hace diferencial de una viñeta normal
+        color: "#000000" // Negro puro para máxima compatibilidad
       });
 
-      // 3. Convertimos esa línea en un blockquote (usará el estilo del CSS de arriba)
-      quill.formatLine(range.index + 1, notaTexto.length, 'blockquote', true);
+      // 3. Aplicamos el formato de viñeta (bullet)
+      // Esto asegura que al exportar a Word, se reconozca como una lista real
+      quill.formatLine(range.index, notaTexto.length, 'list', 'bullet');
       
       // Actualizamos el índice para la siguiente nota
-      range.index += notaTexto.length + 1;
+      range.index += notaTexto.length;
     });
 
-    // 4. IMPORTANTE: Insertamos una línea vacía al final y quitamos los formatos
-    // para que el usuario pueda seguir escribiendo en negro/normal abajo.
-    quill.insertText(range.index + 1, "\n");
-    quill.formatLine(range.index + 1, 1, 'blockquote', false);
-    quill.removeFormat(range.index + 1, 1);
+    // 4. Limpieza final: Insertamos una línea nueva sin negrita 
+    // para que el usuario pueda seguir escribiendo normal abajo
+    quill.insertText(range.index, "\n", { bold: false });
+    quill.formatLine(range.index, 1, 'list', false); // Rompemos la lista
     
-    quill.setSelection(range.index + 2);
+    // Posicionamos el cursor al final
+    quill.setSelection(range.index + 1);
   };
 
   const modules = useMemo(() => ({
     toolbar: {
       container: [
-        [{ header: "1" }, { header: "2" }, { font: [] }],
-        [{ size: [] }],
+        [{ header: [1, 2, 3, false] }, { font: [] }],
+        [{ size: ["small", false, "large", "huge"] }],
         ["bold", "italic", "underline", "strike", "blockquote"],
-        [{ list: "ordered" }, { list: "bullet" }],
-        ["link"],
-        ["notes"], 
-        ["clean"],
+        // MEJORA AQUÍ: Selectores desplegables para listas
+        [
+          { list: [ { 'list': 'ordered' }, { 'list': 'bullet' } ] }, // Esto intenta agruparlos
+          // Sin embargo, la forma estándar de dropdown en Quill para tipos de lista es esta:
+          { list: 'ordered' }, 
+          { list: 'bullet' },
+          { indent: "-1" }, 
+          { indent: "+1" }
+        ],
+        // Alineación (también muy de Word)
+        [{ align: [] }],
+        ["link", "notes", "clean"],
       ],
       handlers: {
-        // 3. ACTUALIZAMOS EL HANDLER PARA ABRIR EL SUBMODAL
         notes: function() {
           setNotasOpen(true);
         },
       },
     },
+    keyboard: {
+      bindings: {
+        tab: {
+          key: 9,
+          handler: function(range, context) {
+            if (context.format.list) {
+              this.quill.format('indent', '+1');
+            } else {
+              return true;
+            }
+          }
+        },
+        shift_tab: {
+          key: 9,
+          shiftKey: true,
+          handler: function(range, context) {
+            if (context.format.list) {
+              this.quill.format('indent', '-1');
+            } else {
+              return true;
+            }
+          }
+        }
+      }
+    }
   }), []);
+
+  // 3. Añadimos los tooltips para los nuevos botones en el useEffect
+  // Dentro de tu Object.keys(labels).forEach...
+  const extraLabels = {
+    'ql-indent': { value: '-1', label: 'Quitar sangría (Subir nivel)' },
+    'ql-indent': { value: '+1', label: 'Aumentar sangría (Subviñeta)' },
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -127,6 +169,25 @@ export default function CondicionesModal({
     return () => clearTimeout(timer);
   }, [open]);
 
+  // Definimos el contenido según el tipo de venta
+  const MENSAJES_PREDETERMINADOS = {
+    'T': '<p><strong>ORDEN TOTAL</strong> </p>',
+    'P': '<p><strong>ORDEN PARCIAL</strong> </p>',
+  };
+
+  useEffect(() => {
+    if (open) {
+      // Si ya hay datos en la DB, los ponemos. 
+      // Si no hay nada (vacio o null), inyectamos el mensaje según el tipoVenta.
+      if (condicionesIniciales && condicionesIniciales !== "<p><br></p>") {
+        setTexto(condicionesIniciales);
+      } else {
+        const mensajeInicial = MENSAJES_PREDETERMINADOS[tipoVenta] || "";
+        setTexto(mensajeInicial);
+      }
+    }
+  }, [open, condicionesIniciales, tipoVenta]);
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border-none p-0 overflow-hidden font-sans">
@@ -149,18 +210,56 @@ export default function CondicionesModal({
           <style>{`
             .quill-sticky-container { display: flex; flex-direction: column; height: 100%; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
             .ql-toolbar.ql-snow { position: sticky; top: 0; z-index: 10; background: #f8fafc !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 8px !important; }
+            
+            /* Botón de Notas */
             .ql-notes { width: 34px !important; display: flex !important; align-items: center; justify-content: center; border-radius: 6px; margin-right: 4px; transition: all 0.2s; color: #475569; }
             .ql-notes:hover { background: #e0f2fe !important; color: #0369a1 !important; }
+            
+            /* Resaltado de botones activos en el Toolbar */
+            .ql-snow.ql-toolbar button.ql-active {
+              color: #0d9488 !important;
+              background: #f0fdfa !important;
+              border-radius: 4px;
+            }
+
             .ql-container.ql-snow { border: none !important; flex: 1; overflow-y: auto !important; font-size: 13px; }
+            
+            /* Blockquote Estilo V&C */
             .ql-editor blockquote {
-                border-left: 4px solid #14b8a6 !important; /* Borde Teal */
-                background-color: #f0fdfa !important;    /* Fondo Teal muy suave */
-                color: #0d9488 !important;               /* Texto en Teal */
-                padding: 12px 15px !important;
-                margin: 10px 0 !important;
-                border-radius: 0 8px 8px 0;
-                font-style: normal !important;           /* Quitamos la cursiva por defecto */
-              }
+              border-left: 4px solid #14b8a6 !important;
+              background-color: #f0fdfa !important;
+              color: #0d9488 !important;
+              padding: 12px 15px !important;
+              margin: 10px 0 !important;
+              border-radius: 0 8px 8px 0;
+              font-style: normal !important;
+            }
+
+            /* --- MULTINIVEL ESTILO WORD (VERSIÓN DEFINITIVA) --- */
+
+            /* 1. Limpiamos el formato de Quill que bloquea el estilo nativo */
+            .ql-editor ul li::before, .ql-editor ol li::before {
+              content: none !important; /* Eliminamos el punto manual de Quill */
+            }
+
+            /* 2. Forzamos a que las listas tengan padding y estilo visible */
+            .ql-editor ul, .ql-editor ol {
+              padding-left: 1.5em !important;
+            }
+
+            /* 3. Definimos los tipos de viñeta por nivel (Igual que la biblioteca de Word) */
+            .ql-editor ul li { list-style-type: disc !important; }         /* Nivel 1: ● */
+            .ql-editor ul li.ql-indent-1 { list-style-type: circle !important; } /* Nivel 2: ○ */
+            .ql-editor ul li.ql-indent-2 { list-style-type: square !important; } /* Nivel 3: ■ */
+
+            /* 4. Definimos los tipos de numeración por nivel (1, a, i) */
+            .ql-editor ol li { list-style-type: decimal !important; }
+            .ql-editor ol li.ql-indent-1 { list-style-type: lower-alpha !important; }
+            .ql-editor ol li.ql-indent-2 { list-style-type: lower-roman !important; }
+
+            /* 5. Ajuste de sangrías para que coincidan con los niveles de Word */
+            .ql-editor li.ql-indent-1 { padding-left: 1.5em !important; margin-left: 1.5em !important; }
+            .ql-editor li.ql-indent-2 { padding-left: 1.5em !important; margin-left: 3em !important; }
           `}</style>
 
           <div className="quill-sticky-container shadow-inner">

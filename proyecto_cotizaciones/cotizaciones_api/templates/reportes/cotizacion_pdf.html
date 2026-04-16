@@ -55,82 +55,91 @@
             page-break-after: auto;
         }
 
-        /* --- PORTADA --- */
+        /* --- PORTADA ESTILO WORD --- */
         .cover {
-            background: linear-gradient(135deg, #ffffff 0%, #e6f2f1 100%);
-        }
-
-        .cover-accent {
-            background: #2A928F;
-            opacity: 0.03;
-        }
-
-        .logo-container {
-            padding: 60px;
-            max-width: 360px;
-        }
-
-        .logo-main {
-            width: 240px;
-            height: auto;
+            background: #ffffff; /* Fondo blanco puro como Word */
+            padding: 2.5cm 1.5cm; /* Margen estándar */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            font-family: 'Times New Roman', Times, serif;
         }
 
         .cover-content {
-            margin-top: 100px;
-            padding: 0 60px;
+            margin-top: 120px; /* Bajamos un poco más el bloque */
+            padding-left: 1.5cm; /* Margen exacto de Word para que no choque al borde */
+            text-align: left;
         }
 
-        .tagline {
-            color: var(--primary);
-            font-weight: 700;
-            letter-spacing: 4px;
+        .tagline-portada {
+            font-size: 12pt;
+            font-weight: bold; /* Negrita aplicada */
+            color: rgb(42, 145, 142);
             text-transform: uppercase;
-            font-size: 14px;
+            
+            /* ESPACIADO ENTRE LETRAS (Efecto "Expandido" en Word) */
+            letter-spacing: 4pt; 
+            
+            /* INTERLINEADO (Espaciado entre párrafos/líneas de 1.15) */
+            line-height: 1.15;
+            
             margin-bottom: 10px;
+            display: block;
         }
 
         .main-title {
-            font-size: 52px;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--dark);
+            font-size: 39pt; /* Un poco más grande para llenar el espacio */
+            font-weight: 900; /* Máximo grosor */
+            line-height: 1.2;
+            color: #000000;
+            margin: 0;
+            max-width: 85%;
+        }
+
+        .preparado-seccion {
+            padding-left: 2px;
+        }
+
+        .preparado-label {
+            font-size: 11pt;
+            font-weight: bold; /* Negrita aplicada */
+            color: rgb(42, 145, 142);
+            text-transform: uppercase;
+            
+            /* ESPACIADO ENTRE LETRAS (Efecto "Expandido" en Word) */
+            letter-spacing: 4pt; 
+            
+            /* INTERLINEADO (Espaciado entre párrafos/líneas de 1.15) */
+            line-height: 1.15;
+            
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .cliente-nombre {
+            font-size: 12pt;
+            color: #000000;
             margin: 0;
         }
 
-        .client-section {
-            margin-top: 80px;
-            display: flex;
-            align-items: center;
-            gap: 40px;
+        .cover-footer-simple {
+            border-top: 1px solid #eeeeee;
+            padding-top: 20px;
+            text-align: left;
         }
 
-        .client-logo-box {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            border: 1px solid #e5e7eb;
-            width: 200px;
-            height: 120px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .footer-empresa {
+            font-size: 11pt;
+            font-weight: bold;
+            margin: 0;
+            color: #000000;
         }
 
-        .client-logo-box img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        .cover-footer {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            padding: 60px;
-            box-sizing: border-box;
-            display: flex;
-            justify-content: space-between;
-            border-top: 1px solid rgba(0,0,0,0.05);
+        .footer-eslogan {
+            font-size: 9pt;
+            color: rgb(42, 145, 142);
+            margin: 0;
         }
 
         /* --- CONTENIDO --- */
@@ -153,28 +162,42 @@
         }
 
         /* --- INFO CARDS --- */
-        .info-grid {
-            display: table;
+        .summary-table {
             width: 100%;
-            border-spacing: 15px;
-            margin-left: -15px;
+            border-collapse: collapse;
+            margin-bottom: 0; /* Controlado por el contenedor */
+            table-layout: fixed;
         }
 
-        .info-card {
-            display: table-cell;
-            background: var(--light-bg);
-            padding: 20px;
-            border-radius: 10px;
-            width: 50%;
+        .summary-table td {
+            border: 0.5pt solid #000;
+            padding: 6pt;
             vertical-align: top;
+            font-family: "Times New Roman", serif;
+            font-size: 9.5pt;
         }
 
-        .info-label {
-            font-size: 10px;
+        .summary-label {
+            background-color: #D9D9D9; /* Gris exacto de Word */
+            font-weight: bold;
+            width: 25%;
             text-transform: uppercase;
-            color: var(--text-gray);
-            font-weight: 600;
-            margin-bottom: 5px;
+            font-size: 8.5pt;
+        }
+
+        .summary-value {
+            width: 37.5%;
+            line-height: 1.2;
+        }
+
+        /* Badge de Nro de Cotización estilo Word */
+        .quote-badge-word {
+            border: 1.5pt solid #000;
+            padding: 4pt 12pt;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 5pt;
         }
 
         /* --- TABLAS --- */
@@ -239,10 +262,16 @@
         .quote-badge {
             background: var(--dark);
             color: white;
-            padding: 8px 15px;
+            /* Superior/Inferior: 0 | Izquierda/Derecha: 0.32cm */
+            padding: 0.2cm 0.32cm; 
             border-radius: 5px;
             display: inline-block;
-            margin-bottom: 15px;
+            /* Ajuste de línea exacto a tu Word */
+            line-height: 1.15; 
+            /* Reducimos este margen para que la fecha no se aleje */
+            margin-bottom: 4px; 
+            /* Aseguramos que el texto no tenga espacios extra */
+            vertical-align: middle;
         }
 
         .summary-grid {
@@ -260,27 +289,49 @@
 
         .data-card {
             background: #ffffff;
-            border: 1px solid var(--border);
-            border-left: 4px solid var(--primary); /* La línea de color que te gustó */
-            padding: 15px;
+            /* Color exacto solicitado y grosor de 1.5pt */
+            border: 2px solid rgb(221, 221, 229); 
+            /* Ajustamos el padding a 12px para compensar el borde más grueso */
+            padding: 12px 15px;
+            /* Mantenemos tus 10px de radio que calzan bien con el estilo */
             border-radius: 10px;
             margin-bottom: 10px;
         }
 
         .data-card .label {
             display: block;
-            font-size: 9px;
+            /* Tamaño 10 de Word */
+            font-size: 10pt; 
+            /* Color RGB(42, 145, 142) */
+            color: rgb(42, 145, 142);
+            /* Siempre en Mayúsculas y Negrita */
             text-transform: uppercase;
-            color: var(--primary);
-            font-weight: 700;
+            font-weight: bold; 
+            /* Espaciado entre líneas 1.15 */
+            line-height: 1.15;
+            /* Margen inferior para separar del contenido */
             margin-bottom: 5px;
         }
 
         .data-card .value {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--dark);
-            line-height: 1.4;
+            /* Tamaño 9 de Word */
+            font-size: 9pt;
+            /* Color RGB(68, 68, 68) - Un gris oscuro profesional */
+            color: rgb(68, 68, 68);
+            /* Espaciado entre líneas 1.15 */
+            line-height: 1.15;
+            /* Aseguramos que no herede mayúsculas de la etiqueta */
+            text-transform: none;
+        }
+
+        .data-card .value .line {
+            font-weight: 400; /* Normal */
+            display: block;
+            margin-bottom: 2px; /* Espacio entre líneas */
+        }
+
+        .data-card .value .line.strong {
+            font-weight: 700; /* Negrita clara */
         }
 
         .mission-statement {
@@ -301,126 +352,221 @@
         .indice-contenedor {
             margin-top: 50px;
             padding: 0 40px;
+            /* Fuente global para el contenedor si no hereda de body */
+            font-family: 'Times New Roman', Times, serif; 
         }
 
         .indice-item {
             display: flex;
             align-items: baseline;
-            margin-bottom: 20px;
-            font-size: 13px;
-            letter-spacing: 1.5px;
-            color: var(--dark);
+            /* Espaciado de 1.5 basado en el tamaño de fuente (11pt * 1.5) */
+            margin-bottom: 16.5pt; 
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #000000; /* Texto en negro puro */
         }
 
         .indice-numero {
             font-weight: 700;
-            color: var(--primary);
-            width: 30px;
+            /* Color específico: RGB (42, 145, 142) */
+            color: rgb(42, 145, 142); 
+            min-width: 35px;
+            display: inline-block;
         }
 
         .indice-titulo {
-            flex-grow: 1;
-            font-weight: 500;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .indice-puntos {
-            flex-grow: 1;
-            border-bottom: 1px dotted var(--border);
-            margin: 0 10px;
-            position: relative;
-            top: -4px;
+            letter-spacing: 0.5px;
+            flex-grow: 1; /* Esto empuja el número de página al final */
         }
 
         .indice-pag {
             font-weight: 700;
-            color: var(--text-gray);
+            color: #000000;
+            padding-left: 15px;
+            min-width: 30px;
+            text-align: right;
         }
 
-        /* --- ESTILOS DE TABLAS MEJORADOS --- */
+        /* --- CONFIGURACIÓN DE COLORES (Variables actualizadas) --- */
+        :root {
+            --primary-rgb: rgb(35, 117, 115);
+            --border-tabla: rgb(209, 213, 222);
+            --text-filas: rgb(68, 68, 68);
+            --bg-filas: rgb(254, 254, 255);
+            --bg-totales: rgb(247, 249, 251);
+        }
+
+        /* --- TÍTULOS DE SECCIÓN --- */
         .subtit {
-            font-size: 14px;
+            font-size: 12pt; /* Tamaño exacto de Word */
             font-weight: 700;
-            color: var(--primary);
-            border-left: 4px solid var(--primary);
-            padding-left: 10px;
-            margin: 25px 0 15px 0;
+            color: #000000;
+            border-left: 5px solid var(--primary-rgb);
+            padding: 2px 0 2px 12px;
+            margin: 30px 0 15px 0;             
             text-transform: uppercase;
+            display: block;
+            line-height: 1.1; /* Compacta el texto para que no use más espacio del necesario */
+            page-break-after: avoid;
         }
 
+        /* --- TABLA UNIFICADA (tabla-moderna) --- */
         .tabla-moderna {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
-            background-color: #ffffff;
-            font-size: 11px;
-            page-break-inside: auto; /* Permite que la tabla se divida entre hojas */
+            background-color: var(--bg-filas);
+            color: var(--text-filas);
+            table-layout: auto; /* Permite que el contenido ayude al ajuste */
+            page-break-before: auto;
+            border-bottom: 0.5pt solid var(--border-tabla);
         }
 
+        /* Control de saltos de línea en filas */
         .tabla-moderna tr {
-            page-break-inside: avoid; /* Evita que una fila se parta en dos hojas */
-            page-break-after: auto;
+            /* CAMBIO CLAVE: Evita que el ítem 12 (o cualquier otro) se parta entre dos páginas */
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
-        .grupo-detalle {
-            page-break-inside: avoid; /* Intenta mantener cada bloque de detalle unido */
-            margin-bottom: 20px;
+        /* --- EXCEPCIÓN PARA SERVICIOS (Permitir ruptura y cierre visual) --- */
+        /* 1. Permitir que la fila se rompa */
+        .seccion-servicios .tabla-moderna tr {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
         }
 
+        /* 2. Forzar el dibujo del borde en cada fragmento de la celda cortada */
+        .seccion-servicios .tabla-moderna td {
+            /* Al usar border-bottom en el td, algunos motores cierran el borde al final de la página */
+            border-bottom: 0.5pt solid var(--border-tabla) !important;
+            /* Este ajuste ayuda a que el borde se mantenga en la base del área visible */
+            background-clip: padding-box; 
+        }
+
+        /* 3. El truco del "Cierre de Emergencia" */
+        /* Si el borde del td no aparece, este borde en la tabla servirá de cierre en cada salto */
+        .seccion-servicios .tabla-moderna {
+            border-bottom: 0.5pt solid var(--border-tabla) !important;
+        }
+
+        /* 4. Asegurar flujo de texto */
+        .seccion-servicios .rich-text {
+            page-break-inside: auto !important;
+            display: block; /* Ayuda al cálculo del borde inferior */
+        }
+
+        /* 1. RESET DE TEXTO INTERNO (Clave para que se vea como Word) */
+        .tabla-moderna th, 
+        .tabla-moderna td {
+            /* Márgenes exactos de tu imagen de Word */
+            padding-top: 0.2cm;      
+            padding-bottom: 0.2cm;   
+            padding-left: 0.19cm;    
+            padding-right: 0.19cm;   
+            /* Elimina el espacio extra entre líneas de la web */
+            line-height: 1.1; 
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            border-bottom: 0.5pt solid var(--border-tabla);
+        }
+
+        /* Elimina márgenes si usas etiquetas <p> dentro de las celdas */
+        .tabla-moderna td p, 
+        .tabla-moderna th p {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 1. CABECERA */
         .tabla-moderna thead th {
-            background-color: var(--dark);
-            color: #ffffff;
-            padding: 10px;
-            text-align: left;
-            font-weight: 600;
-            border: none;
+            background-color: var(--primary-rgb);
+            color: #ffffff; /* Negrita blanco */
+            font-weight: 700;
+            font-size: 11pt;
+            text-align: center;
+            border: 0.5pt solid #000000; /* Borde negro */
+            border-bottom: none; /* Sin borde inferior como pediste */
+            white-space: nowrap;
         }
 
+        /* 2. FILAS Y BORDES */
         .tabla-moderna tbody td {
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border);
+            border: 0.5pt solid var(--border-tabla); /* Borde gris claro */
+            font-size: 9pt;
             vertical-align: middle;
         }
 
-        .tabla-moderna tbody tr:nth-child(even) {
-            background-color: #fcfcfc;
-        }
-
-        .tabla-moderna .total-fila {
-            background-color: #f8fafc;
+        /* 3. FILAS DE TOTALES (SUBTOTAL, DESCUENTO, TOTAL) */
+        .tabla-moderna .total-fila,
+        .tabla-moderna tfoot tr {
+            background-color: var(--bg-totales) !important;
             font-weight: 700;
-            color: var(--dark);
+            font-size: 10pt;
+            color: #000000;
+            page-break-before: avoid;
         }
 
-        /* --- FOOTER TOTAL / DESCUENTO --- */
-        .total-label {
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: var(--dark);
+        .tabla-moderna tfoot td {
+            border: 0.5pt solid var(--border-tabla);
         }
 
-        .total-value {
-            font-size: 14px;
-            font-weight: 700;
-            padding-right: 5px;
-        }
-
-        .total-value.main {
-            color: var(--primary);
-            font-size: 15px;
-        }
-
-        .total-value.muted {
-            color: var(--text-gray);
-        }
-
-        /* Alineaciones */
+        /* Clases de utilidad para alineación */
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .font-bold { font-weight: 700; }
+
+        /* --- SECCIÓN CONDICIONES GENERALES (Estilo Word) --- */
+        .marco-condiciones {
+            /* Fondo: RGB (247, 249, 251) */
+            background-color: #f7f9fb;
+            
+            /* Borde: RGB (209, 213, 222) y Grosor 1.5pt (~2px) */
+            border: 2px solid #d1d5de;
+            border-radius: 2px;
+            
+            /* Márgenes internos exactos de tu Word */
+            padding: 0.2cm 0.25cm;
+            
+            /* Espacio exterior para separar de las tablas anteriores */
+            margin-top: 30px;
+            
+            /* Permite que el cuadro fluya entre páginas si es muy extenso */
+            page-break-inside: auto; 
+        }
+
+        .subtit-condiciones {
+            /* Eliminamos márgenes externos para que no afecten el padding del cuadro */
+            margin: 0 0 12px 0 !important; 
+            
+            /* Estilo visual coherente */
+            font-size: 12pt;
+            font-weight: 700;
+            color: #000000;
+            border-left: 5px solid var(--primary-rgb);
+            padding: 2px 0 2px 12px;
+            text-transform: uppercase;
+            display: block;
+            line-height: 1.1;
+        }
+
+        .texto-condiciones {
+            text-align: justify;
+            font-size: 10pt;
+            /* Contenido: RGB (68, 68, 68) */
+            color: #444444; 
+            line-height: 1.5; /* Un poco más de aire para mejorar la lectura */
+        }
+
+        /* Ajuste preventivo para párrafos o listas que vengan del editor de texto */
+        .texto-condiciones p, 
+        .texto-condiciones ul, 
+        .texto-condiciones li {
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
 
         /* --- ENCABEZADO --- */
         .header-container {
@@ -631,163 +777,206 @@
                 display: none !important; /* Oculta el botón en impresión/PDF */
             }
         }
-
-
     </style>
 </head>
 <body>
 
 <div class="page cover">
-    <div class="cover-accent"></div>
-    
-    <div class="cover-content" style="margin-top: 80px;"> 
-        <div class="tagline">Propuesta Económica</div>
+    <div class="cover-content"> 
+        <div class="tagline-portada">Propuesta Económica</div>
         <h1 class="main-title">{{ cabecera.referencia|upper }}</h1>
-        
-        <div class="client-section">
-            <div class="client-logo-box">
-                <img src="clientes/{{ cabecera.cliente_codigo }}.png" alt="Logo Cliente">
-            </div>
-            <div>
-                <p style="margin:0; color: var(--text-gray);">Preparado para:</p>
-                <h3 style="margin:0; font-size: 20px;">{{ cabecera.cliente }}</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="cover-footer">
-        <div></div>
-        <div style="text-align:right">
-            <p style="margin:0; font-weight:600;">V&C Corporation SAC</p>
-            <p style="margin:0; font-size: 11px; color: var(--text-gray);">Optimización y Automatización de Procesos</p>
-        </div>
     </div>
 </div>
 
 <div class="page">
     <div class="footer-bg"></div>
     <div class="content">
-        <div style="text-align: right;">
+        <div style="text-align: right; margin-bottom: 10px;">
             <div class="quote-badge">
-                <span style="font-size: 11px;">COTIZACIÓN NRO:</span>
-                <span style="font-size: 14px; font-weight: bold; margin-left: 10px;">{{ cabecera.num_reg|default:"---" }}</span>
+                <span style="font-size: 10pt; font-weight: 400;">COTIZACIÓN NRO:</span>
+                <span style="font-size: 10pt; font-weight: bold; margin-left: 5px;">{{ cabecera.numero|default:"---" }}</span>
             </div>
-            <p style="font-size: 12px; color: var(--text-gray); margin: 0;">Fecha: <strong>{{ cabecera.fecha }}</strong></p>
-        </div>
 
-        <h2 style="color: var(--dark); margin-top: 0; border-bottom: 2px solid var(--primary); display: inline-block;">Resumen de la Propuesta</h2>
-
-        <div class="summary-grid">
-            <div class="summary-item">
-                <div class="data-card">
-                    <span class="label">Preparado para:</span>
-                    <div class="value">
-                        <span style="font-size: 15px; color: var(--primary);">{{ cabecera.cliente|default:"CLIENTE" }}</span><br>
-                        <span style="font-weight: 400;">Atención:</span> {{ cabecera.atencion.nombre }}<br>
-                        <span style="font-size: 11px; font-weight: 400; color: var(--text-gray);">
-                            {{ cabecera.atencion.cargo }}<br>
-                            Tel: {{ cabecera.atencion.telefono }} | {{ cabecera.atencion.correo }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            <div class="summary-item">
-                <div class="data-card" style="border-left-color: var(--dark);">
-                    <span class="label">Emitido por:</span>
-                    <div class="value">
-                        V&C Corporation SAC<br>
-                        <span style="font-size: 11px; font-weight: 400; color: var(--text-gray);">
-                            RUC: 20508558997<br>
-                            Asoc. Villa Rica Mz. S Lote 1 – Chaclacayo<br>
-                            Lima - Perú
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="summary-grid" style="margin-top: 0;">
-          <div class="summary-item">
-    <div class="data-card">
-        <span class="label">Contacto Comercial:</span>
-
-        {% if cabecera.comercial.nombre or cabecera.comercial.telefono or cabecera.comercial.movil1 or cabecera.comercial.movil2 or cabecera.comercial.movil3 or cabecera.comercial.correo %}
-        <div class="value">
-
-            {% if cabecera.comercial.nombre %}
-                <div class="line strong">{{ cabecera.comercial.nombre }}</div>
-            {% endif %}
-
-            {% if cabecera.comercial.telefono %}
-                <div class="line">Teléfono: {{ cabecera.comercial.telefono }}</div>
-            {% endif %}
-
-            {% if cabecera.comercial.correo %}
-                <div class="line">Correo: {{ cabecera.comercial.correo }}</div>
-            {% endif %}
-
-        </div>
-        {% endif %}
-
-    </div>
-</div>
-
-<div class="summary-item">
-    <div class="data-card">
-        <span class="label">Contacto Técnico:</span>
-
-        {% if cabecera.tecnico.nombre or cabecera.tecnico.telefono or cabecera.tecnico.movil1 or cabecera.tecnico.movil2 or cabecera.tecnico.movil3 or cabecera.tecnico.correo %}
-        <div class="value">
-
-            {% if cabecera.tecnico.nombre %}
-                <div class="line strong">{{ cabecera.tecnico.nombre }}</div>
-            {% endif %}
-
-            {% if cabecera.tecnico.telefono %}
-                <div class="line">Teléfono: {{ cabecera.tecnico.telefono }}</div>
-            {% endif %}
-
-            {% if cabecera.tecnico.correo %}
-                <div class="line">Correo: {{ cabecera.tecnico.correo }}</div>
-            {% endif %}
-
-        </div>
-        {% endif %}
-
-    </div>
-</div>
-
+            <table style="width: 100%; border-collapse: collapse; table-layout: fixed; border: none;">
+                <tr>
+                    <td style="width: 60%; text-align: left; vertical-align: bottom; padding: 0;">
+                        <h2 style="
+                            color: #000000; 
+                            margin: 0; 
+                            font-size: 22pt; 
+                            font-weight: bold; 
+                            display: inline-block; 
+                            border-bottom: 2.5pt solid rgb(42, 145, 142); 
+                            padding-bottom: 1px;
+                            line-height: 1.15;
+                        ">
+                            Resumen de la Propuesta
+                        </h2>
+                    </td>
+                    <td style="width: 40%; text-align: center; vertical-align: bottom; padding: 0; padding-bottom: 9px;">
+                        <div style="font-size: 10pt; color: rgb(68, 68, 68); font-weight: bold; white-space: nowrap;">
+                            Fecha: {{ cabecera.fecha }}
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </div>
 
         <div style="margin-top: 10px;">
-            <div class="data-card" style="border-left: 4px solid var(--secondary);">
-                <span class="label">Referencia del Proyecto:</span>
-                <div class="value" style="font-size: 14px;">{{ cabecera.referencia|upper }}</div>
+            <div class="data-card">
+                <span class="label">Referencia</span>
+                <div class="value"><strong>{{ cabecera.referencia|upper }}</strong></div>
+            </div>
+        </div>
+        
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="data-card">
+                    <span class="label">Atención:</span>
+                    <div class="value">
+                        <strong>{{ cabecera.cliente|upper }}</strong><br>
+                        
+                        {% if cabecera.atencion.nombre %}
+                        <div class="line">
+                            <strong>Representante:</strong> {{ cabecera.atencion.nombre }} 
+                            {% if cabecera.atencion.cargo %} – {{ cabecera.atencion.cargo }}{% endif %}
+                        </div>
+                        {% endif %}
+
+                        {% if cabecera.atencion.telefono %}
+                        <div class="line">
+                            <strong>• Teléfono:</strong> {{ cabecera.atencion.telefono }}
+                        </div>
+                        {% endif %}
+
+                        {% if cabecera.atencion.correo %}
+                        <div class="line">
+                            <strong>• Correo:</strong> {{ cabecera.atencion.correo }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-item">
+                <div class="data-card">
+                    <span class="label">Emitido por:</span>
+                    <div class="value">
+                        <strong>V&C Corporation SAC</strong><br>
+                        <div class="line">
+                            RUC: 20508558997<br>
+                            Asoc. Villa Rica Mz. S Lote 1 – Chaclacayo – Lima – Perú
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="summary-grid" style="margin-top: 0;">
+          {% if cabecera.comercial.nombre or cabecera.comercial.telefono or cabecera.comercial.correo %}
+          <div class="summary-item">
+            <div class="data-card">
+                <span class="label">Contacto Comercial:</span>
+
+                {% if cabecera.comercial.nombre or cabecera.comercial.telefono or cabecera.comercial.correo %}
+                <div class="value">
+                    {% if cabecera.comercial.nombre %}
+                        <div class="line strong">{{ cabecera.comercial.nombre }}</div>
+                    {% endif %}
+
+                    {% if cabecera.comercial.telefono %}
+                        <div class="line">
+                            <strong>• Teléfono:</strong> {{ cabecera.comercial.telefono }}
+                        </div>
+                    {% endif %}
+
+                    {% if cabecera.comercial.correo %}
+                        <div class="line">
+                            <strong>• Correo:</strong> {{ cabecera.comercial.correo }}
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if cabecera.tecnico.nombre or cabecera.tecnico.telefono or cabecera.tecnico.correo %}
+          <div class="summary-item">
+            <div class="data-card">
+                <span class="label">Contacto Técnico:</span>
+
+                {% if cabecera.tecnico.nombre or cabecera.tecnico.telefono or cabecera.tecnico.correo %}
+                <div class="value">
+                    {% if cabecera.tecnico.nombre %}
+                        <div class="line strong">{{ cabecera.tecnico.nombre }}</div>
+                    {% endif %}
+
+                    {% if cabecera.tecnico.telefono %}
+                        <div class="line">
+                            <strong>• Teléfono:</strong> {{ cabecera.tecnico.telefono }}
+                        </div>
+                    {% endif %}
+
+                    {% if cabecera.tecnico.correo %}
+                        <div class="line">
+                            <strong>• Correo:</strong> {{ cabecera.tecnico.correo }}
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="summary-grid" style="margin-top: 0;">
+            {% if cabecera.tiempo_entrega.suministros.cantidad > 0 or cabecera.tiempo_entrega.servicios.cantidad > 0 %}
             <div class="summary-item">
                 <div class="data-card">
                     <span class="label">Tiempos de Entrega:</span>
-                    <div class="value" style="font-size: 11px;">
-                        • Suministros: {{ cabecera.tiempo_entrega.suministros.cantidad }} {{ cabecera.tiempo_entrega.suministros.tipo }}<br>
-                        • Servicios: {{ cabecera.tiempo_entrega.servicios.cantidad }} {{ cabecera.tiempo_entrega.servicios.tipo }}
+                    <div class="value">
+                        {% if cabecera.tiempo_entrega.suministros.cantidad and cabecera.tiempo_entrega.suministros.cantidad > 0 %}
+                            <div class="line">
+                                <strong>• Suministros:</strong> {{ cabecera.tiempo_entrega.suministros.cantidad }} {{ cabecera.tiempo_entrega.suministros.tipo }}
+                            </div>
+                        {% endif %}
+
+                        {% if cabecera.tiempo_entrega.servicios.cantidad and cabecera.tiempo_entrega.servicios.cantidad > 0 %}
+                            <div class="line">
+                                <strong>• Servicios:</strong> {{ cabecera.tiempo_entrega.servicios.cantidad }} {{ cabecera.tiempo_entrega.servicios.tipo }}
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
-                <div class="data-card">
-                    <span class="label">Lugar de Entrega:</span>
-                    <div class="value" style="font-size: 11px;">{{ cabecera.lugar_entrega }}</div>
-                </div>
             </div>
+            {% endif %}
+
             <div class="summary-item">
                 <div class="data-card">
-                    <span class="label">Condiciones Económicas:</span>
-                    <div class="value" style="font-size: 11px;">
-                        • Moneda: {{ cabecera.moneda }}<br>
-                        • Pago: {{ cabecera.forma_pago }}<br>
-                        • IGV: {% if cabecera.incluye_igv %}Incluye IGV{% else %}No incluye IGV{% endif %}<br>
-                        • Validez: {{ cabecera.validez.cantidad }} {{ cabecera.validez.tipo }}
+                    <span class="label">Condiciones Comerciales:</span>
+                    <div class="value">
+                        {% if cabecera.moneda %}
+                            <div class="line"><strong>• Moneda:</strong> {{ cabecera.moneda }}</div>
+                        {% endif %}
+
+                        {% if cabecera.forma_pago %}
+                            <div class="line"><strong>• Pago:</strong> {{ cabecera.forma_pago }}</div>
+                        {% endif %}
+
+                        <div class="line">
+                            <strong>• IGV:</strong> {% if cabecera.incluye_igv %}Incluye IGV{% else %}No incluye IGV{% endif %}
+                        </div>
+
+                        {% if cabecera.validez.cantidad and cabecera.validez.cantidad > 0 %}
+                            <div class="line">
+                                <strong>• Validez:</strong> {{ cabecera.validez.cantidad }} {{ cabecera.validez.tipo }}
+                            </div>
+                        {% endif %}
+
+                        {% if cabecera.lugar_entrega %}
+                            <div class="line"><strong>• Lugar de Entrega:</strong> {{ cabecera.lugar_entrega }}</div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -797,20 +986,46 @@
 
 <div class="page">
   <div class="content-padding">
-    <div style="text-align: center; margin-bottom: 60px;">
-        <span class="tagline" style="font-size: 12px;">Contenido de la Propuesta</span>
-        <h2 style="font-size: 32px; font-weight: 800; color: var(--dark); margin: 10px 0;">TABLA DE CONTENIDOS</h2>
-        <div style="width: 50px; height: 4px; background: var(--primary); margin: 0 auto;"></div>
+    <div style="text-align: center; margin-bottom: 60px; font-family: 'Times New Roman', Times, serif;">
+        <span style="
+            font-size: 10pt; 
+            font-weight: bold; 
+            color: rgb(42, 145, 142); 
+            text-transform: uppercase; 
+            letter-spacing: 3pt; /* Efecto expandido de Word */
+            display: block; 
+            line-height: 2.0; /* Espaciado 2.0 */
+            margin-bottom: 5px;
+        ">
+            Contenido de la Propuesta
+        </span>
+
+        <h2 style="
+            font-size: 24pt; 
+            font-weight: 800; 
+            color: #000000; 
+            text-transform: uppercase;
+            margin: 0; 
+            line-height: 1.0; /* Espaciado 1.0 */
+            display: block;
+        ">
+            TABLA DE CONTENIDOS
+        </h2>
+
+        <div style="
+            width: 45px; 
+            height: 3.5px; 
+            background-color: rgb(42, 145, 142); 
+            margin: 10px auto 0;
+        "></div>
     </div>
 
     <div class="indice-contenedor">
         {% for item in indice %}
         <div class="indice-item">
-            <span class="indice-numero">
-                {{ item.numero|stringformat:"02d" }}
-            </span>
+            <span class="indice-numero">{{ item.numero|stringformat:"02d" }}</span>
             <span class="indice-titulo">{{ item.titulo }}</span>
-            <span class="indice-puntos"></span>
+            <span class="indice-pag">{{ item.pagina }}</span> 
         </div>
         {% endfor %}
     </div>
@@ -819,7 +1034,7 @@
         <div style="position: absolute; left: 0; top: 20%; width: 4px; height: 60%; background: linear-gradient(to bottom, transparent, var(--primary), transparent); opacity: 0.3;"></div>
     </div>
 
-    <div class="footer-info">V&C Corporation SAC - Propuesta Técnica Económica</div>
+    <div class="footer-info">V&C Corporation SAC - Propuesta Económica</div>
 </div>
 
 <div class="page-dynamic">
@@ -827,16 +1042,18 @@
     <div class="header-container">
         <img src="{{ header_path }}" class="header-img">
     </div>
-    <div class="content-padding">
-        <p class="subtit">{{ secciones.presupuesto }}.- PRESUPUESTO GENERAL</p>
+    <div class="content-padding" style="padding-top: 0;" >
+        <p class="subtit" style="margin-top: 0; padding-top: 0;">
+            {{ secciones.presupuesto }}.- PRESUPUESTO GENERAL
+        </p>
         <table class="tabla-moderna">
             <thead>
                 <tr>
-                    <th style="width:5%" class="text-center">Ítem</th>
-                    <th style="width:60%">Descripción del Grupo</th>
-                    <th style="width:5%" class="text-center">Cant.</th>
-                    <th style="width:15%" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
-                    <th style="width:15%" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
+                    <th style="width: 5%;" class="text-center">Ítem</th>
+                    <th style="width: 57%;">Descripción</th>
+                    <th style="width: 9%;" class="text-center">Cant.</th>
+                    <th style="width: 15%;" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                    <th style="width: 14%;" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -876,84 +1093,96 @@
 
         {% if suministros %}
             {% for grupo in suministros %}
-            <div class="grupo-detalle" style="page-break-inside: avoid; margin-top: 20px;">
+            <div class="grupo-detalle" style="page-break-inside: auto; margin-top: 20px;">
                 <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
                 <table class="tabla-moderna">
                     <thead>
                         <tr>
-                            <th style="width:5%" class="text-center">Ítem</th>
-                            <th style="width:50%" class="text-center">Descripción Técnica</th>
-                            <th style="width:5%" class="text-center">Entrega</th>
-                            
-                            <th style="width:5%" class="text-center">Cant.</th>
-                            <th style="width:15%" class="text-center">Unitario</th>
-                            <th style="width:15%" class="text-center">Total</th>
+                            <th style="width: 6%;" class="text-center">Ítem</th>
+                            <th style="width: 52%;" class="text-center">Descripción del Grupo</th>
+                            <th style="width: 3%;" class="text-center">Cant.</th>
+                            <th style="width: 11%;" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                            <th style="width: 9%;" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
+                            <th style="width: 12%;" class="text-center">Entrega</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in grupo.items %}
                         <tr>
                             <td class="text-center">{{ forloop.counter }}</td>
-                            <td style="font-size: 10px; line-height: 1.2;">{{ item.descripcion|linebreaksbr }}</td>
-                            <td class="text-center">{{ item.entrega }}</td>
-                            
+                            <td class="text-length">{{ item.descripcion|linebreaksbr }}</td>                            
                             <td class="text-center">{{ item.cantidad|floatformat:2 }}</td>
                             <td class="text-right">{{ item.precio_unitario|moneda:totales.moneda }}</td>
                             <td class="text-right font-bold">{{ item.total|moneda:totales.moneda }}</td>
+                            <td class="text-center">
+                                {% if item.entrega > 0 %}
+                                    {{ item.entrega }} {{ item.unidad_entrega }}
+                                {% else %}
+                                    
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
-                    <tfoot>
+                    
+                    {# Usamos un tbody adicional para que el subtotal NO se repita al partirse la tabla #}
+                    {% if grupo.items|length > 1 %}
+                    <tbody style="page-break-inside: avoid;">
                         <tr class="total-fila">
-                            <td colspan="5" class="text-right">Subtotal Grupo:</td>
-                            <td class="text-right">{{ grupo.subtotal_tot_items|moneda:totales.moneda }}</td>
+                            <td colspan="4" class="text-right" style="font-weight: bold; border-top: 1px solid #eee;">Subtotal Grupo:</td>
+                            <td class="text-right font-bold" style="border-top: 1px solid #eee;">{{ grupo.subtotal_tot_items|moneda:totales.moneda }}</td>
+                            <td style="border-top: 1px solid #eee;"></td>
                         </tr>
-                    </tfoot>
+                    </tbody>
+                    {% endif %}
                 </table>
             </div>
             {% endfor %}
         {% endif %}
 
         {% if servicios %}
-            {% for grupo in servicios %}
-            <div style="margin-top: 30px; page-break-inside: avoid;">
-                <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
-                <table class="tabla-moderna">
-                    <thead>
-                        <tr>
-                            <th style="width:5%" class="text-center">Ítem</th>
-                            <th style="width:60%">Descripción del Servicio</th>
-                            <th style="width:5%" class="text-center">Cant.</th>
-                            <th style="width:15%" class="text-center">Unitario</th>
-                            <th style="width:15%" class="text-center">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="text-center">01</td>
-                            <td class="rich-text">{{ grupo.detalle|safe }}</td>
-                            <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
-                            <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
-                            <td class="text-right font-bold">{{ grupo.total_servicio|moneda:totales.moneda }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="seccion-servicios"> 
+                {% for grupo in servicios %}
+                    <div style="margin-top: 10px; page-break-inside: auto;">
+                        <p class="subtit">{{ grupo.seccion }}.- DETALLE: {{ grupo.titulo }}</p>
+                        <table class="tabla-moderna">
+                            <thead>
+                                <tr>
+                                    <th style="width: 6%;" class="text-center">Ítem</th>
+                                    <th style="width: 55%;">Descripción del Servicio</th>
+                                    <th style="width: 10%;" class="text-center">Cant.</th>
+                                    <th style="width: 9%;" class="text-center">Unitario ({{ totales.moneda_simbolo }})</th>
+                                    <th style="width: 20%;" class="text-center">Total ({{ totales.moneda_simbolo }})</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-center">01</td>
+                                    <td class="rich-text">{{ grupo.detalle|safe }}</td>
+                                    <td class="text-center">{{ grupo.cantidad|floatformat:2 }}</td>
+                                    <td class="text-right">{{ grupo.total|moneda:totales.moneda }}</td>
+                                    <td class="text-right font-bold">{{ grupo.total_servicio|moneda:totales.moneda }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         {% endif %}
 
         {% if condiciones_generales.condiciones %}
-            <div style="page-break-inside: avoid; margin-top: 40px; padding: 20px; background: #fcfcfc; border-radius: 8px; border: 1px solid var(--border);">
-                <p class="subtit">{{ secciones.condiciones }}.- CONDICIONES GENERALES</p>
-                <div style="text-align: justify; font-size: 10px; color: var(--text-gray); line-height: 1.4;">
+            <div class="marco-condiciones">
+                <p class="subtit-condiciones">
+                    {{ secciones.condiciones }}.- CONDICIONES GENERALES
+                </p>
+                
+                <div class="texto-condiciones">
                     {{ condiciones_generales.condiciones|safe }}
                 </div>
             </div>
         {% endif %}
     </div>
 </div>
-
-</body>
 
 <div class="no-print-controls">
     <button class="word-blue" onclick="descargarWordReal()">
@@ -965,20 +1194,20 @@
 </div>
 
 <script>
-function descargarWordReal() {
-    // Django traducirá esto a la ruta real, ej: /api/cotizacion/word/2026000069/
-    const url = "{% url 'descargar_cotizacion_word' cabecera.num_reg %}";
+    function descargarWordReal() {
+        // Django traducirá esto a la ruta real, ej: /api/cotizacion/word/2026000069/
+        const url = "{% url 'descargar_cotizacion_word' cabecera.num_reg %}";
 
-    const link = document.createElement('a');
-    link.href = url;
-    
-    // Forzamos que el navegador lo trate como descarga
-    link.setAttribute('download', "Cotizacion_{{ cabecera.num_reg }}.docx");
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // Forzamos que el navegador lo trate como descarga
+        link.setAttribute('download', "{{ cabecera.numero }}_{{ cabecera.referencia }}.docx");
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 </script>
 
 </html>

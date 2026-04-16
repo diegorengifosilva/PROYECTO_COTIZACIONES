@@ -33,7 +33,6 @@ import {
   SquareArrowUp,
   SquareArrowDown,
   UserPlus,
-
   UserCheck,
   Wrench,
   Mail,
@@ -41,6 +40,12 @@ import {
   Package,
   Briefcase,
   PackageSearch,
+  FilePieChart,
+  Printer,
+  FileCheck2,
+  ClipboardList,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import InputField from "./InputField";
 import SelectField from "./SelectField";
@@ -56,17 +61,15 @@ import {
   useSensors,
   closestCenter,
 } from "@dnd-kit/core";
-
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
-
 import { CSS } from "@dnd-kit/utilities";
-
 import { createPortal } from 'react-dom'; // 1. Importar
+import ActionMenu from "./ActionMenu";
 
 const handleDragEndGrupo = (event) => {
   const { active, over } = event;
@@ -100,6 +103,7 @@ export default function InfoTabs({
   data,        // datos completos de la cotización
   setData,
   tabsToShow,  // tabs personalizados si deseas
+  esOportunidad,
   suministros,
   servicios,
   totalesLocales,
@@ -578,7 +582,7 @@ export default function InfoTabs({
 
       // Identidad
       nombc: comercial.nomb_cort_usu,
-      codic: String(comercial.usuario_usu),
+      codic: String(comercial.dni),
 
       // Contacto
       mailc: comercial.email_usu || "",
@@ -692,7 +696,7 @@ export default function InfoTabs({
 
       // Identidad
       nombt: tecnico.nomb_cort_usu,
-      codit: String(tecnico.usuario_usu),
+      codit: String(tecnico.dni),
 
       // Contacto
       mailt: tecnico.email_usu || "",
@@ -826,6 +830,13 @@ export default function InfoTabs({
   const tipoVentaOptions = [
     { id: "P", nombre: "Venta Parcial" },
     { id: "T", nombre: "Venta Total" },
+  ];
+
+  const estadoOpOptions = [
+    { id: "0", nombre: "Pendiente" },
+    { id: "1", nombre: "No Cotizado" },
+    { id: "2", nombre: "Rechazado" },
+    { id: "3", nombre: "Cotizado" },
   ];
 
   // =====================
@@ -2238,259 +2249,423 @@ export default function InfoTabs({
           )}
 
           {/* TOTAL COTIZACIÓN - ESTILO BADGE PREMIUM */}
-          <div
-            className="
-              flex items-center justify-center gap-2
-              h-10 sm:h-11
-              px-5 sm:px-7
-              text-sm font-black uppercase tracking-[0.12em]
-              rounded-xl
-              bg-green-50/70 text-green-800
-              border border-green-100/70
-              shadow-sm shadow-green-100/30
-              ml-auto backdrop-blur
-            "
-            title="Total general de la cotización"
+          <ActionMenu
+            title="Resumen y Reportes"
+            align="end"
+            customTrigger={
+              <button className="flex items-center justify-center gap-3 h-10 sm:h-11 px-5 sm:px-7 text-sm font-black uppercase tracking-[0.12em] rounded-xl bg-green-50/70 text-green-800 border border-green-100/70 shadow-sm shadow-green-100/30 ml-auto backdrop-blur transition-all hover:bg-green-100/80 group outline-none">
+                <span className="text-green-700 font-black tracking-normal">Total:</span>
+                <span className="text-[15px]">
+                  $ {formatMoney(totalesLocales.total)}
+                </span>
+                <ChevronDown className="h-4 w-4 text-green-600 transition-transform group-data-[state=open]:rotate-180" />
+              </button>
+            }
           >
-            <span className="text-green-700 font-black tracking-normal">Total:</span>
-            <span className="text-[14px]">
-              $ {formatMoney(totalesLocales.total)}
-            </span>
-          </div>
+            {/* SECCIÓN 1: DESGLOSE INTERACTIVO (BOTONES) */}
+            <div className="px-2 py-2 space-y-1">
+              <button 
+                onClick={onReporteSuministros}
+                className="w-full flex justify-between items-center bg-slate-50/50 hover:bg-teal-50/50 p-2 rounded-xl border border-transparent hover:border-teal-100 transition-all group/item"
+              >
+                <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-tighter group-hover/item:text-teal-700">
+                  <Package className="h-3.5 w-3.5 text-teal-600" />
+                  Suministros
+                </div>
+                <span className="text-[11px] font-black text-slate-700 group-hover/item:text-teal-800">
+                  $ {formatMoney(totalesLocales.suministros || 0)}
+                </span>
+              </button>
+              
+              <button 
+                onClick={onReporteServicios}
+                className="w-full flex justify-between items-center bg-slate-50/50 hover:bg-indigo-50/50 p-2 rounded-xl border border-transparent hover:border-indigo-100 transition-all group/item"
+              >
+                <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-tighter group-hover/item:text-indigo-700">
+                  <Briefcase className="h-3.5 w-3.5 text-indigo-600" />
+                  Servicios
+                </div>
+                <span className="text-[11px] font-black text-slate-700 group-hover/item:text-indigo-800">
+                  $ {formatMoney(totalesLocales.servicios || 0)}
+                </span>
+              </button>
+            </div>
+
+            {/* SECCIÓN 2: REPORTES GENERALES */}
+            <div className="p-1.5 space-y-1">
+              <button 
+                onClick={onReporteDetallado}
+                className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 hover:bg-emerald-50/80 rounded-xl transition-all group/detallado border border-slate-100/50 hover:border-emerald-200"
+              >
+                <div className="flex items-center gap-2">
+                  {/* Icono con color activo desde el inicio */}
+                  <div className="p-1.5 rounded-lg bg-emerald-50 group-hover/detallado:bg-emerald-100 transition-colors">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600 shadow-sm" />
+                  </div>
+                  <span>Reporte Detallado</span>
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-300 group-hover/detallado:text-emerald-500 transition-transform group-hover/detallado:translate-x-0.5" />
+              </button>
+
+              <button 
+                onClick={onReporteResumen}
+                className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 hover:bg-blue-50/80 rounded-xl transition-all group/resumen border border-slate-100/50 hover:border-blue-200"
+              >
+                <div className="flex items-center gap-2">
+                  {/* Icono con color activo desde el inicio */}
+                  <div className="p-1.5 rounded-lg bg-blue-50 group-hover/resumen:bg-blue-100 transition-colors">
+                    <FileText className="w-3.5 h-3.5 text-blue-600 shadow-sm" />
+                  </div>
+                  <span>Reporte de Resumen</span>
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-300 group-hover/resumen:text-blue-500 transition-transform group-hover/resumen:translate-x-0.5" />
+              </button>
+            </div>
+          </ActionMenu>
         </TabsList>
 
         {/* DATOS */}
         {activeTabs.includes("datos") && (
           <TabsContent value="datos" className="space-y-3">
-            <CardContent className="px-1 -mt-5 pb-1 mb-3">
-              
-              {/* SECCIÓN SUPERIOR: DATOS GENERALES */}
+            <CardContent className="px-1 -mt-5 pb-1 mb-3 space-y-3">
+              {/* GRID ERP PRINCIPAL */}
               <div className="space-y-3">
+                {/* FILA OPORTUNIDADES */}
+                {esOportunidad && (
+                  <div className="grid grid-cols-12 gap-3 mt-3">
+                    <div className="col-span-12 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <InputField 
+                          inline size="sm" type="date" 
+                          label="Recepción Solicitud:" 
+                          value={data.f_recp || ""} 
+                          onChange={(e)=>handleFieldChange("f_recp", e.target.value)} // <-- Cambio aquí
+                          readOnly={isReadOnly}
+                        />
+                        <InputField 
+                          inline size="sm" type="date" 
+                          label="Fecha Límite:*" 
+                          className="border-red-100 bg-red-50/30" 
+                          value={data.f_limite || ""} 
+                          onChange={(e)=>handleFieldChange("f_limite", e.target.value)} // <-- Cambio aquí
+                          readOnly={isReadOnly}
+                        />
+                        <InputField 
+                          inline size="sm" type="date" 
+                          label="Emisión Cotización:" 
+                          value={data.f_emi || ""} // En tu modelo de Django es "f_emi"
+                          onChange={(e)=>handleFieldChange("f_emi", e.target.value)} // <-- Cambio aquí
+                          readOnly={isReadOnly}
+                        />
+                        <SelectField 
+                          inline size="sm" 
+                          label="Estado Oportunidad:" 
+                          value={(data.estado_op !== undefined && data.estado_op !== null) ? data.estado_op : ""} 
+                          options={estadoOpOptions} 
+                          onChange={(e) => handleFieldChange("estado_op", e.target.value)} 
+                          disabled={isReadOnly}
+                        />
+                      </div>
 
-              {/* HEADER OPERATIVO */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="pt-1">
+                        <InputField 
+                          inline size="sm" 
+                          label="Comentarios:" 
+                          value={data.coment || ""} 
+                          onChange={(e)=>handleFieldChange("coment", e.target.value)} // <-- Cambio aquí
+                          readOnly={isReadOnly}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Cotización</p>
-              <p className="text-sm font-black text-gray-800 flex items-center gap-2">
-              {data.numero || "Generando..."}
-              {data.numero?.trim()
-              ? <Check className="w-4 h-4 text-green-500"/>
-              : <Loader className="w-4 h-4 text-gray-400 animate-spin"/>}
-              </p>
-              </div>
+                {/* FILA 1 */}
+                <div className="grid grid-cols-12 gap-3">
+                  {/* IDENTIFICACIÓN */}
+                  <div className="col-span-12 xl:col-span-5 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-3">
 
-              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Cliente</p>
-              <p className="text-sm font-black text-gray-800 truncate">
-              {clientes.find(c => c.codigo === data.cliente_codigo)?.nombre || "Seleccionar"}
-              </p>
-              </div>
+                    <div className="flex items-center justify-between border-b pb-1">
+                      <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
+                        Identificación
+                      </p>
 
-              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Probabilidad</p>
-              <p className="text-sm font-black text-indigo-600">
-              {data.prob || 0} %
-              </p>
-              </div>
-
-              <div className="bg-white border rounded-xl px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Total</p>
-              <p className="text-sm font-black text-green-700">
-              {data.tot_c ? formatMoney(data.tot_c) : "-"}
-              </p>
-              </div>
-
-              </div>
-
-                {/* COLUMNA IZQUIERDA: IDENTIFICACIÓN Y CLIENTE */}
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-xs space-y-2">
-                  
-                  {/* NÚMERO DE COTIZACIÓN / FECHA */}
-                  <div className="grid grid-cols-2 gap-2 items-center">
-                    <div className="relative flex items-center gap-2">
-                      <InputField
-                        inline
-                        size="sm"
-                        label="Cotización Nro."
-                        value={data?.numero || ""}
-                        readOnly
-                      />
-                      {data?.numero?.trim() ? (
-                        <Check className="w-4 h-4 text-green-500 shrink-0" />
-                      ) : (
-                        <Loader className="w-4 h-4 text-gray-500 animate-spin shrink-0" />
-                      )}
+                      {data?.numero?.trim()
+                        ? <Check className="w-4 h-4 text-teal-600"/>
+                        : <Loader className="w-4 h-4 text-gray-400 animate-spin"/>
+                      }
                     </div>
 
-                    <InputField
-                      id="fecha"
-                      inline
-                      size="sm"
-                      label="Fecha:*"
-                      type="date"
-                      value={data.fecha || ""}
-                      onChange={(e) => handleFieldChange("fecha", e.target.value)}
-                      readOnly={isReadOnly}
-                      className={campoError === "fecha" ? "bg-red-50 border-red-200" : ""}
-                    />
+                    <InputField inline size="sm" label="Cotización Nro." value={data?.numero || ""} readOnly/>
+                    <InputField id="referencia" inline size="sm" label="Referencia:*" as="textarea" rows={2} value={data.referencia || ""} onChange={(e)=>handleFieldChange("referencia", e.target.value)} readOnly={isReadOnly}/>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <InputField id="fecha" inline size="sm" label="Fecha:*" type="date" value={data.fecha || ""} onChange={(e)=>handleFieldChange("fecha", e.target.value)} readOnly={isReadOnly}/>
+                      <SelectField id="prob" inline size="sm" label="Probabilidad:*" value={data.prob || ""} onChange={(e)=>handleFieldChange("prob", e.target.value)} options={probOptions} disabled={isReadOnly}/>
+                    </div>
+
                   </div>
 
-                  {/* REFERENCIA */}
-                  <InputField
-                    id="referencia"
-                    inline
-                    size="sm"
-                    label="Referencia:*"
-                    as="textarea"
-                    rows={2}
-                    value={data.referencia || ""}
-                    onChange={(e) => handleFieldChange("referencia", e.target.value)}
-                    readOnly={isReadOnly}
-                    className={`resize-y min-h-[2.5rem] ${campoError === "referencia" ? "bg-red-50 border-red-200" : ""}`}
-                  />
-
                   {/* CLIENTE */}
-                  <SelectField
-                    id="cliente_codigo"
-                    inline
-                    size="sm"
-                    label="Para:*"
-                    value={data.cliente_codigo || ""}
-                    onChange={(e) => handleFieldChange("cliente_codigo", e.target.value)}
-                    options={clientes.map(c => ({ id: c.codigo, nombre: c.nombre }))}
-                    disabled={isReadOnly}
-                    className={campoError === "cliente_codigo" ? "border-red-500 ring-1 ring-red-400" : ""}
-                  />
-                  
-                  {/* ATENCIÓN (Buscador de Encargados) */}
-                  <div ref={encargadosRef} className="flex items-center gap-2 w-full relative">
-                    <label className="text-[11px] font-bold text-gray-600 whitespace-nowrap w-[72px]">
-                      Atención:
-                    </label>
-                    <div className="relative flex-1">
+                  <div className="col-span-12 xl:col-span-3 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-3">
+                    <div className="border-b pb-1">
+                      <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
+                        Cliente
+                      </p>
+                    </div>
+
+                    <SelectField id="cliente_codigo" inline size="sm" label="Para:*" value={data.cliente_codigo || ""} onChange={(e)=>handleFieldChange("cliente_codigo", e.target.value)} options={clientes.map(c=>({id:c.codigo,nombre:c.nombre}))} disabled={isReadOnly}/>
+
+                    {/* ATENCIÓN */}
+                    <div ref={encargadosRef} className="flex items-center gap-2">
+
+                      <label className="text-[11px] font-semibold text-gray-600 w-[72px]">
+                        Atención:
+                      </label>
+
                       <input
                         value={encargadoQuery}
                         disabled={isReadOnly || !data.cliente_codigo}
                         placeholder="Buscar encargado..."
-                        onFocus={() => {
-                          setEncargadoFocused(true);
-                          fetchEncargadosInline("");
-                          setShowEncargadosDropdown(true);
+                        onFocus={()=>{
+                          setEncargadoFocused(true)
+                          fetchEncargadosInline("")
+                          setShowEncargadosDropdown(true)
                         }}
-                        onBlur={() => setTimeout(() => {
-                          setEncargadoFocused(false);
-                          setShowEncargadosDropdown(false);
-                        }, 150)}
-                        onChange={(e) => {
-                          setEncargadoQuery(e.target.value);
-                          setHighlightEncargadoIndex(-1);
-                          handleFieldChange("encargado_codigo", "");
+                        onBlur={()=>setTimeout(()=>{
+                          setEncargadoFocused(false)
+                          setShowEncargadosDropdown(false)
+                        },150)}
+                        onChange={(e)=>{
+                          setEncargadoQuery(e.target.value)
+                          setHighlightEncargadoIndex(-1)
+                          handleFieldChange("encargado_codigo","")
                         }}
-                        className={`w-full border rounded-md px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition-all
-                          ${campoError === "encargado_codigo" ? "border-red-500 bg-red-50" : "border-gray-300"}
-                          ${(isReadOnly || !data.cliente_codigo) ? "bg-gray-100 italic" : "bg-white"}
-                        `}
+                        className={`flex-1 border rounded-md px-2 py-1 text-xs focus:ring-1 focus:ring-teal-500 outline-none transition-all
+                        ${campoError==="encargado_codigo"?"border-red-400 bg-red-50":"border-gray-300"}
+                        ${(isReadOnly||!data.cliente_codigo)?"bg-gray-100 italic":"bg-white"}`}
                       />
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          onClick={() => setOpenEncargados(true)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600"
-                        >
-                          <ChevronsRight className="w-4 h-4" />
-                        </button>
-                      )}
 
-                      {/* DROPDOWN ENCARGADOS */}
-                      {showEncargadosDropdown && (
-                        <div className="absolute left-0 top-full mt-1 w-full bg-white border rounded-xl shadow-xl max-h-60 overflow-y-auto z-50 animate-in fade-in slide-in-from-top-1">
-                          {encargadosLoading ? (
-                            <div className="p-3 text-xs text-gray-400 text-center italic">Cargando...</div>
-                          ) : encargadosResults.length === 0 ? (
-                            <div className="p-3 text-xs text-gray-400 text-center italic">Sin resultados</div>
-                          ) : (
-                            encargadosResults.map((enc, i) => (
-                              <div
-                                key={enc.codigo}
-                                onMouseDown={() => handleEncargadoSelect(enc)}
-                                className={`px-3 py-2 cursor-pointer text-xs border-b border-gray-50 last:border-0
-                                  ${highlightEncargadoIndex === i ? "bg-indigo-600 text-white" : "hover:bg-indigo-50 text-gray-700"}
-                                `}
-                              >
-                                <p className="font-bold">{enc.representante}</p>
-                                <p className={`text-[10px] ${highlightEncargadoIndex === i ? "text-indigo-100" : "text-gray-500"}`}>
-                                  {enc.cargo}
-                                </p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+
+                      <InputField inline size="sm" label="Cargo:" value={data.cargo || ""} readOnly={isReadOnly}/>
+                      <InputField inline size="sm" label="Teléfono:" value={data.teler || ""} readOnly={isReadOnly}/>
+                      <InputField inline size="sm" label="Móvil:" value={data.movir || ""} readOnly={isReadOnly}/>
+                      <InputField inline size="sm" label="Email:" value={data.mailr || ""} readOnly={isReadOnly}/>
+
+                    </div>
+
                   </div>
 
-                  {/* CONTACTO DETALLES */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <InputField inline size="sm" label="Cargo:" value={data.cargo || ""} onChange={(e) => handleFieldChange("cargo", e.target.value)} readOnly={isReadOnly} />
-                    <InputField inline size="sm" label="Teléfono:" value={data.teler || ""} onChange={(e) => handleFieldChange("teler", e.target.value)} readOnly={isReadOnly} />
-                    <InputField inline size="sm" label="Móvil:" value={data.movir || ""} onChange={(e) => handleFieldChange("movir", e.target.value)} readOnly={isReadOnly} />
-                    <InputField inline size="sm" label="Email:" value={data.mailr || ""} onChange={(e) => handleFieldChange("mailr", e.target.value)} readOnly={isReadOnly} />
-                  </div>
+                  {/* CONDICIONES */}
+                  <div className="col-span-12 xl:col-span-4 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-3">
+                    <div className="border-b pb-1">
+                      <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
+                        Condiciones comerciales
+                      </p>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 border-t border-gray-100 pt-2">
-                    <SelectField id="prob" inline size="sm" label="Probabilidad:*" value={data.prob || ""} onChange={(e) => handleFieldChange("prob", e.target.value)} options={probOptions} disabled={isReadOnly} className={campoError === "prob" ? "border-red-500" : ""} />
-                    <InputField inline size="sm" label="Total Cotizacion:" value={data.tot_c ? formatMoney(data.tot_c) : "-"} readOnly className="font-bold text-gray-900" />
+                    <div className="grid grid-cols-2 gap-2">
+
+                      <SelectField
+                        id="cotit"
+                        inline
+                        size="sm"
+                        label="Tipo:*"
+                        value={data.cotit || ""}
+                        onChange={(e)=>handleFieldChange("cotit", e.target.value)}
+                        disabled={isReadOnly}
+                        options={tipoOptions}
+                      />
+
+                      <SelectField
+                        id="area_codigo"
+                        inline
+                        size="sm"
+                        label="Área"
+                        value={data.area_codigo || ""}
+                        onChange={(e)=>handleFieldChange("area_codigo", e.target.value)}
+                        disabled={isReadOnly}
+                        options={areasOptions}
+                      />
+
+                    </div>
+
+                    {data.cotit==="V" && (
+                      <SelectField
+                        id="tven"
+                        inline
+                        size="sm"
+                        label="Tipo Venta:*"
+                        value={data.tven || ""}
+                        onChange={(e)=>handleFieldChange("tven", e.target.value)}
+                        disabled={isReadOnly}
+                        options={tipoVentaOptions}
+                      />
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+
+                      <SelectField
+                        inline
+                        size="sm"
+                        label="Forma Pago"
+                        value={data.fpago || ""}
+                        onChange={(e)=>handleFieldChange("fpago", e.target.value)}
+                        disabled={isReadOnly}
+                        options={formasPagoOptions}
+                      />
+
+                      <SelectField
+                        inline
+                        size="sm"
+                        label="Estado"
+                        value={data.estado_codigo || ""}
+                        onChange={(e)=>handleFieldChange("estado_codigo", e.target.value)}
+                        disabled={isReadOnly}
+                        options={estadosOptions}
+                      />
+
+                    </div>
+
+                    <InputField
+                      inline
+                      size="sm"
+                      label="Lugar Entrega"
+                      value={data.lugar || ""}
+                      onChange={(e)=>handleFieldChange("lugar", e.target.value)}
+                      readOnly={isReadOnly}
+                    />
+
                   </div>
                 </div>
 
-                {/* COLUMNA DERECHA: LOGÍSTICA Y CONDICIONES */}
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-xs space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <SelectField id="cotit" inline size="sm" label="Tipo Cotización:*" value={data.cotit || ""} onChange={(e) => handleFieldChange("cotit", e.target.value)} disabled={isReadOnly} options={tipoOptions} className={campoError === "cotit" ? "border-red-500" : ""} />
-                    <SelectField id="area_codigo" inline size="sm" label="Área:" value={data.area_codigo || ""} onChange={(e) => handleFieldChange("area_codigo", e.target.value)} disabled={isReadOnly} options={areasOptions} />
-                    {/* SECCIÓN DE LOGÍSTICA DE VENTA */}
-                    {data.cotit === "V" && (
-                      <div className="space-y-2 animate-in fade-in slide-in-from-left-2 duration-300">
-                        <SelectField
-                          id="tven"
+                {/* FILA 2 */}
+                <div className="grid grid-cols-12 gap-3">
+                  <div className="hidden xl:block xl:col-span-2"></div>
+
+                  {/* TIEMPOS */}
+                  <div className="col-span-12 xl:col-span-4 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-2">
+
+                    <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
+                      Tiempos
+                    </p>
+
+                    {/* ENTREGA SUMINISTROS */}
+                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+
+                      <InputField
+                        inline
+                        size="sm"
+                        label="Entrega Suministros"
+                        value={data.plazo || "0"}
+                        onChange={(e)=>handleFieldChange("plazo", e.target.value)}
+                        readOnly={isReadOnly}
+                      />
+
+                      <SelectField
+                        size="sm"
+                        value={data.tot_d || ""}
+                        onChange={(e)=>handleFieldChange("tot_d", e.target.value)}
+                        options={unidadOptions}
+                        disabled={isReadOnly}
+                        className="w-[90px]"
+                      />
+
+                    </div>
+
+                    {/* ENTREGA SERVICIOS */}
+                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+
+                      <InputField
+                        inline
+                        size="sm"
+                        label="Entrega Servicios"
+                        value={data.por_c || "0"}
+                        onChange={(e)=>handleFieldChange("por_c", e.target.value)}
+                        readOnly={isReadOnly}
+                      />
+
+                      <SelectField
+                        size="sm"
+                        value={data.tot_s || ""}
+                        onChange={(e)=>handleFieldChange("tot_s", e.target.value)}
+                        options={unidadOptions}
+                        disabled={isReadOnly}
+                        className="w-[90px]"
+                      />
+
+                    </div>
+
+                  </div>
+
+                  {/* FINANCIERO */}
+                  <div className="col-span-12 xl:col-span-4 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-2">
+
+                    <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
+                      Financiero
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+
+                      <SelectField
+                        inline
+                        size="sm"
+                        label="Moneda"
+                        value={data.tmone || ""}
+                        onChange={(e)=>handleFieldChange("tmone", e.target.value)}
+                        options={monedasOptions}
+                        disabled={isReadOnly}
+                      />
+
+                      <SelectField
+                        inline
+                        size="sm"
+                        label="IGV"
+                        value={data.igv || "N"}
+                        onChange={(e)=>handleFieldChange("igv", e.target.value)}
+                        options={igvOptions}
+                        disabled={isReadOnly}
+                      />
+
+                      <InputField
+                        inline
+                        size="sm"
+                        label="T.C."
+                        value={data.tcamb || ""}
+                        onChange={(e)=>handleFieldChange("tcamb", e.target.value)}
+                        readOnly={isReadOnly}
+                      />
+
+                      <div className="flex items-end gap-2">
+
+                        <InputField
                           inline
                           size="sm"
-                          label="Tipo Venta:*"
-                          value={data.tven || ""}
-                          onChange={(e) => handleFieldChange("tven", e.target.value)}
-                          disabled={isReadOnly}
-                          options={tipoVentaOptions}
-                          placeholder="-- SELECCIONE TIPO --"
-                          className={`bg-blue-50/50 ${campoError === "tven" ? "border-red-500" : ""}`}
+                          label="Validez"
+                          value={data.valid || "0"}
+                          onChange={(e)=>handleFieldChange("valid", e.target.value)}
+                          readOnly={isReadOnly}
                         />
+
+                        <SelectField
+                          size="sm"
+                          value={data.acu_s || ""}
+                          onChange={(e)=>handleFieldChange("acu_s", e.target.value)}
+                          options={unidadOptions}
+                          disabled={isReadOnly}
+                          className="w-[90px]"
+                        />
+
                       </div>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <SelectField inline size="sm" label="Forma de Pago:" value={data.fpago || ""} onChange={(e) => handleFieldChange("fpago", e.target.value)} disabled={isReadOnly} options={formasPagoOptions} />
-                    <SelectField inline size="sm" label="Estado:" value={data.estado_codigo || ""} onChange={(e) => handleFieldChange("estado_codigo", e.target.value)} disabled={isReadOnly} options={estadosOptions} />
-                  </div>
-
-                  <InputField inline size="sm" label="Lugar Entrega:" value={data.lugar || ""} onChange={(e) => handleFieldChange("lugar", e.target.value)} readOnly={isReadOnly} />
-
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-gray-50/50 p-2 rounded-lg border border-gray-100">
-                    <InputField inline size="sm" label="Entrega Suministros:" value={data.plazo || "0"} onChange={(e) => handleFieldChange("plazo", e.target.value)} readOnly={isReadOnly} />
-                    <SelectField inline size="sm" label="Unidad:" value={data.tot_d || ""} onChange={(e) => handleFieldChange("tot_d", e.target.value)} options={unidadOptions} disabled={isReadOnly} />
-                    <InputField inline size="sm" label="Entrega Servicios:" value={data.por_c || "0"} onChange={(e) => handleFieldChange("por_c", e.target.value)} readOnly={isReadOnly} />
-                    <SelectField inline size="sm" label="Unidad:" value={data.tot_s || ""} onChange={(e) => handleFieldChange("tot_s", e.target.value)} options={unidadOptions} disabled={isReadOnly} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <SelectField inline size="sm" label="Moneda:" value={data.tmone || ""} onChange={(e) => handleFieldChange("tmone", e.target.value)} options={monedasOptions} disabled={isReadOnly} />
-                    <InputField inline size="sm" label="T.C.:" value={data.tcamb || ""} onChange={(e) => handleFieldChange("tcamb", e.target.value)} readOnly={isReadOnly} />
-                    <SelectField inline size="sm" label="I.G.V.:" value={data.igv || "N"} onChange={(e) => handleFieldChange("igv", e.target.value)} options={igvOptions} disabled={isReadOnly} />
-                    <div className="flex gap-1">
-                      <InputField inline size="sm" label="Validez:" value={data.valid || "0"} onChange={(e) => handleFieldChange("valid", e.target.value)} readOnly={isReadOnly} className="w-full" />
-                      <SelectField size="sm" value={data.acu_s || ""} onChange={(e) => handleFieldChange("acu_s", e.target.value)} options={unidadOptions} disabled={isReadOnly} className="w-20" />
                     </div>
+
                   </div>
+
+                  <div className="hidden xl:block xl:col-span-2"></div>
                 </div>
               </div>
 
@@ -2519,7 +2694,6 @@ export default function InfoTabs({
                       <button 
                         type="button" 
                         onClick={() => {
-                          setTipoModal("comercial"); // Estado para saber qué estamos editando
                           setOpenContactos(true);
                         }} 
                         className="p-1 hover:bg-white/50 rounded-full transition-colors text-cyan-600"
@@ -2663,270 +2837,342 @@ export default function InfoTabs({
         {/* SUMINISTROS */}
         {activeTabs.includes("suministros") && (
           <TabsContent value="suministros" className="space-y-3">
-            <CardContent className="px-1 -mt-5 pb-1 mb-3">
-              <div className="overflow-x-auto rounded-md border border-slate-300 shadow-md">
-                <table className="min-w-full table-fixed text-[11px] tabular-nums border-collapse">
-                  
-                  {/* HEADER PRINCIPAL - Máximo Contraste */}
-                  <thead className="sticky top-0 z-20">
-                    <tr className="bg-slate-900 text-white">
-                      <th colSpan={9} className="px-3 py-2 border-b border-slate-700">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 bg-slate-800 px-2 py-1 rounded border border-slate-600">
-                              <Package className="h-4 w-4 text-teal-500" />
-                              <span className="font-bold tracking-widest text-xs">SUMINISTROS</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => { setGrupoActivo(null); setOpenGrupoModal(true); }}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-600 hover:bg-teal-700 text-white transition-all active:scale-95 shadow-sm"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              <span className="font-bold uppercase text-[10px]">Nuevo Grupo</span>
-                            </button>
-                          </div>
+            <div className="space-y-4">
+              {/* WORKSPACE HEADER SUMINISTROS */}
+              <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm">
 
-                          <button
-                            type="button"
-                            onClick={handleRefreshSuministros}
-                            disabled={loadingSuministros}
-                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition-colors"
-                          >
-                            <RefreshCcw className={`h-4 w-4 text-emerald-400 ${loadingSuministros ? "animate-spin" : ""}`} />
-                          </button>
-                        </div>
-                      </th>
-                    </tr>
-                    <tr className="bg-slate-200 text-slate-800 uppercase font-extrabold text-[10px] tracking-tight border-b border-slate-400">
-                      <th className="w-10 py-1 border-r border-slate-300 text-center">Nro</th>
-                      <th className="w-[115px] py-1 border-r border-slate-300 text-center">Código</th>
-                      <th className="py-1 border-r border-slate-300 text-left px-3">Descripción Suministro</th>
-                      <th className="w-[145px] py-1 border-r border-slate-300 text-cente">Proveedor</th>
-                      <th className="w-14 py-1 border-r border-slate-300 text-center">U.M.</th>
-                      <th className="w-14 py-1 border-r border-slate-300 text-center">Cant</th>
-                      <th className="w-24 py-1 border-r border-slate-300 text-center">Valor</th>
-                      <th className="w-24 py-1 border-r border-slate-300 text-center ">Total</th>
-                      <th className="w-10 py-1 border-r border-slate-300 text-center italic"></th>
-                    </tr>
-                  </thead>
+                {/* IZQUIERDA */}
+                <div className="flex items-center gap-4">
 
-                  <tbody className="bg-white">
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5 text-teal-600" />
+                    <span className="text-base font-semibold text-slate-800">
+                      Suministros
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGrupoActivo(null);
+                      setOpenGrupoModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-all active:scale-95 shadow-sm"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Nuevo grupo
+                  </button>
+
+                </div>
+
+                {/* DERECHA DEL WORKSPACE HEADER */}
+                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-1 pr-2 border-r border-slate-200">
+                    <button
+                      type="button"
+                      onClick={onReporteSuministros}
+                      title="Reporte General"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all shadow-sm"
                     >
-                      <SortableContext
-                        items={gruposCalculados.map((g) => g.cog)}
-                        strategy={verticalListSortingStrategy}
+                      <PackageSearch className="h-3.5 w-3.5 text-teal-600" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onReporteVentaTotal}
+                      title="Reporte Venta Total"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all shadow-sm"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-blue-600" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onReporteVentaParcial}
+                      title="Reporte Venta Parcial"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all shadow-sm"
+                    >
+                      <FileCheck2 className="h-3.5 w-3.5 text-orange-600" />
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-fixed text-[11px] tabular-nums border-collapse">
+                    
+                    {/* HEADER PRINCIPAL - Máximo Contraste */}
+                    <thead className="sticky top-0 z-10 bg-white">
+                      <tr className="bg-slate-50 text-slate-600 text-[11px] font-semibold border-b border-slate-200">
+                        <th className="w-10 py-1 border-r border-slate-200 text-center">Nro</th>
+                        <th className="w-[115px] py-1 border-r border-slate-200 text-center">Código</th>
+                        <th className="py-1 border-r border-slate-200 text-left px-3">Descripción Suministro</th>
+                        <th className="w-[145px] py-1 border-r border-slate-200 text-center">Proveedor</th>
+                        <th className="w-14 py-1 border-r border-slate-200 text-center">U.M.</th>
+                        <th className="w-14 py-1 border-r border-slate-200 text-center">Cant</th>
+                        <th className="w-24 py-1 border-r border-slate-200 text-center">Valor</th>
+                        <th className="w-24 py-1 border-r border-slate-200 text-center ">Total</th>
+                        <th className="w-10 py-1 text-center"></th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="bg-white">
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
                       >
-                        {gruposCalculados.map((grupo) => {
-                          const { cog, subtotal, totalPorGrupo, cantidad } = grupo;
-                          const canGrupo = cantidad;
-                          const tipo = parseCog(grupo.cog ?? cog).tipo;
+                        <SortableContext
+                          items={gruposCalculados.map((g) => g.cog)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {gruposCalculados.map((grupo) => {
+                            const { cog, subtotal, totalPorGrupo, cantidad } = grupo;
+                            const canGrupo = cantidad;
+                            const tipo = parseCog(grupo.cog ?? cog).tipo;
 
 
-                          return (
-                            <React.Fragment key={cog}>
-                              {/* CABECERA DE GRUPO - Visible y con acciones fijas */}
-                              <SortableGrupoRow id={cog} grupo={grupo} highlightId={highlightId}>
-                                  <td className="p-1.5 text-center border-r border-slate-200">
-                                    <button 
-                                      onClick={() => { setGrupoActivo(cog); setItemActivo(null); setOpenItemModal(true); }}
-                                      className="p-1 rounded bg-white border border-slate-400 text-slate-900 hover:bg-slate-400 hover:text-white hover:border-slate-400 transition shadow-sm"
-                                    >
-                                      <Plus className="h-2.5 w-2.5" />
-                                    </button>
-                                  </td>
-                                  <td colSpan={6} className="px-3 py-1.5 border-r border-slate-200">
-                                    <div className="flex items-center gap-3">
-                                      <button
-                                        type="button"
-                                        title="Agregar EQUIPOS"
-                                        className="p-1 rounded bg-white border border-slate-400 text-slate-900 hover:bg-slate-400 hover:text-white hover:border-slate-400 transition shadow-sm"
-                                        onClick={() => {
-                                          setGrupoActivo(cog);
-                                          setItemActivo(null);
-                                          setOpenRegistroItem(true);
-                                        }}
+                            return (
+                              <React.Fragment key={cog}>
+                                {/* CABECERA DE GRUPO - Visible y con acciones fijas */}
+                                <SortableGrupoRow id={cog} grupo={grupo} highlightId={highlightId}>
+                                    <td className="p-1.5 text-center border-r border-slate-200">
+                                      <button 
+                                        onClick={() => { setGrupoActivo(cog); setItemActivo(null); setOpenItemModal(true); }}
+                                        className="
+                                          p-1.5
+                                          rounded-md
+                                          bg-white
+                                          border border-slate-200
+                                          hover:bg-slate-100
+                                          transition
+                                        "
                                       >
                                         <Plus className="h-2.5 w-2.5" />
                                       </button>
-                                      <span
-                                        onClick={() => toggleGrupo(cog)}
-                                        className={`
-                                          inline-flex items-center gap-1
-                                          bg-slate-700 text-white
-                                          px-2 py-1 rounded
-                                          text-[10px] font-black uppercase tracking-tighter
-                                          leading-none cursor-pointer
-                                          hover:bg-slate-800 transition
-                                          select-none
-                                        `}
-                                      >
-                                        {tipo}
-                                      </span>
+                                    </td>
+                                    <td colSpan={6} className="px-3 py-1.5 border-r border-slate-200">
+                                      <div className="flex items-center gap-3">
+                                        {/* AGREGAR */}
+                                        <button
+                                          type="button"
+                                          title="Agregar EQUIPOS"
+                                          className="
+                                            p-1.5
+                                            rounded-md
+                                            bg-white
+                                            border border-slate-200
+                                            hover:bg-slate-100
+                                            transition
+                                          "
+                                          onClick={() => {
+                                            setGrupoActivo(cog);
+                                            setItemActivo(null);
+                                            setOpenRegistroItem(true);
+                                          }}
+                                        >
+                                          <Plus className="h-2.5 w-2.5" />
+                                        </button>
+                                        <span
+                                          onClick={() => toggleGrupo(cog)}
+                                          className={`
+                                            inline-flex items-center gap-1
+                                            bg-slate-800/90 text-white 
+                                            px-2.5 py-1 rounded
+                                            text-[10px] font-black uppercase tracking-tighter
+                                            leading-none cursor-pointer
+                                            hover:bg-slate-800 transition
+                                            select-none
+                                          `}
+                                        >
+                                          {tipo}
+                                        </span>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => { setGrupoActivo({ ...grupo, cog: grupo.cog ?? grupo.id }); setOpenGrupoModal(true); }}
-                                        className="font-black text-slate-800 hover:text-teal-700 transition uppercase text-xs decoration-slate-400 underline-offset-2 hover:underline"
-                                      >
-                                        {grupo.titulo}
-                                      </button>
-                                    </div>
-                                  </td>
-                                  <td className="px-2 border-r border-slate-200">
-                                    <div className="flex justify-center gap-2">
+                                        {/* EDITAR */}
+                                        <button
+                                          type="button"
+                                          onClick={() => { setGrupoActivo({ ...grupo, cog: grupo.cog ?? grupo.id }); setOpenGrupoModal(true); }}
+                                          className="font-black text-slate-800 hover:text-teal-700 transition uppercase text-xs decoration-slate-400 underline-offset-2 hover:underline"
+                                        >
+                                          {grupo.titulo}
+                                        </button>
+                                      </div>
+                                    </td>
+                                    <td className="px-2 border-r border-slate-200">
+                                      <div className="flex justify-center gap-2">
+                                        {/* DUPLICAR */}
+                                        <button 
+                                          onClick={() => onDuplicarGrupo?.(cog)} 
+                                          title="Duplicar"
+                                          className="p-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-500 hover:text-white transition-colors border border-blue-200"
+                                        >
+                                          <CopyPlus className="h-3.5 w-3.5" />
+                                        </button>
+
+                                        {/* IMPORTAR XLS */}
+                                        <button 
+                                          onClick={() => { setGrupoActivo(cog); setOpenImportarXLS1(true); }} 
+                                          title="Importar XLS"
+                                          className="p-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-200"
+                                        >
+                                          <FileUp className="h-3.5 w-3.5" />
+                                        </button>
+
+                                        {/*
+                                        <button
+                                          type="button"
+                                          title="Importar Datos de XLS y actualizar"
+                                          onClick={() => { setGrupoActivo(cog); setOpenImportarXLS2(true); }}
+                                          className="p-1 rounded bg-violet-50 text-violet-700 hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
+                                        >
+                                          <FilePlus className="h-3.5 w-3.5" />
+                                        </button> */}
+
+                                        {/* REPORTE VENTA TOTAL DEL GRUPO */}
+                                        <button 
+                                          onClick={onReporteVentaTotal}
+                                          title="Reporte Venta Total Grupo"
+                                          className="p-1 rounded bg-teal-50 text-teal-700 hover:bg-teal-500 hover:text-white transition-colors border border-teal-200"
+                                        >
+                                          <FileText className="h-3.5 w-3.5" />
+                                        </button>
+
+                                        {/* REPORTE VENTA PARCIAL DEL GRUPO */}
+                                        <button 
+                                          onClick={onReporteVentaParcial} 
+                                          title="Reporte Venta Parcial Grupo"
+                                          className="p-1 rounded bg-orange-50 text-orange-700 hover:bg-orange-500 hover:text-white transition-colors border border-orange-200"
+                                        >
+                                          <FilePieChart className="h-3.5 w-3.5" />
+                                        </button>   
+                                      </div>
+                                    </td>
+                                    <td className="p-1 text-center">
                                       <button 
-                                        onClick={() => onDuplicarGrupo?.(cog)} 
-                                        title="Duplicar"
-                                        className="p-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-500 hover:text-white transition-colors border border-blue-200"
+                                        onClick={() => handleEliminarGrupo(cog)} 
+                                        className="p-1 rounded bg-red-50 text-red-700 hover:bg-red-500 hover:text-white transition-colors border border-red-200"
                                       >
-                                        <CopyPlus className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-3.5 w-3.5" />
                                       </button>
-                                      <button 
-                                        onClick={() => { setGrupoActivo(cog); setOpenImportarXLS1(true); }} 
-                                        title="Importar XLS"
-                                        className="p-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-200"
-                                      >
-                                        <FileUp className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        title="Importar Datos de XLS y actualizar"
-                                        onClick={() => { setGrupoActivo(cog); setOpenImportarXLS2(true); }}
-                                        className="p-1 rounded bg-violet-50 text-violet-700 hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
-                                      >
-                                        <FilePlus className="h-3.5 w-3.5" />
-                                      </button>                                
-                                    </div>
-                                  </td>
-                                  <td className="p-1 text-center">
-                                    <button 
-                                      onClick={() => handleEliminarGrupo(cog)} 
-                                      className="p-1 rounded bg-red-50 text-red-700 hover:bg-red-500 hover:text-white transition-colors border border-red-200"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </td>
-                              </SortableGrupoRow>
+                                    </td>
+                                </SortableGrupoRow>
 
-                              {/* ITEMS / COLAPSADO */}
-                              {/* FILA RESUMEN COLAPSADO */}
-                              {collapsedGrupos[cog] && (
-                                <tr
-                                  onClick={() => toggleGrupo(cog)}
-                                  className="
-                                    bg-slate-50
-                                    text-[10px]
-                                    border-b border-dashed border-slate-300
-                                    cursor-pointer
-                                    hover:bg-slate-100
-                                    transition
-                                  "
-                                >
-                                  <td colSpan={9} className="px-4 py-2 text-slate-600">
-                                    <div className="flex items-center justify-between">
-                                      <span className="italic font-semibold">
-                                        {grupo.items.length} ítems
-                                      </span>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
+                                {/* ITEMS / COLAPSADO */}
+                                {/* FILA RESUMEN COLAPSADO */}
+                                {collapsedGrupos[cog] && (
+                                  <tr
+                                    onClick={() => toggleGrupo(cog)}
+                                    className="
+                                      bg-slate-50
+                                      text-[10px]
+                                      border-b border-dashed border-slate-300
+                                      cursor-pointer
+                                      hover:bg-slate-100
+                                      transition
+                                    "
+                                  >
+                                    <td colSpan={9} className="px-4 py-2 text-slate-600">
+                                      <div className="flex items-center justify-between">
+                                        <span className="italic font-semibold">
+                                          {grupo.items.length} ítems
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
 
-                              {/* ITEMS - Estilo Clean Excel */}
-                              {!collapsedGrupos[cog] &&
-                                grupo.items.map((item, index) => (
-                                  <SortableItemRow
-                                    key={item.id}
-                                    item={item}
-                                    index={index}
-                                    cog={cog}
-                                    grupo={grupo}
-                                    selectedItems={selectedItems}
-                                    handleRowClick={handleRowClick}
-                                    handleEliminarItem={handleEliminarItem}
-                                    setGrupoActivo={setGrupoActivo}
-                                    setItemActivo={setItemActivo}
-                                    setOpenItemModal={setOpenItemModal}
-                                    handleGhostEnter={handleGhostEnter}
-                                    handleGhostLeave={handleGhostLeave}
-                                    hoverTimerRef={hoverTimerRef}
-                                    setGhostItem={setGhostItem}
-                                    highlightId={highlightId}
+                                {/* ITEMS - Estilo Clean Excel */}
+                                {!collapsedGrupos[cog] &&
+                                  grupo.items.map((item, index) => (
+                                    <SortableItemRow
+                                      key={item.id}
+                                      item={item}
+                                      index={index}
+                                      cog={cog}
+                                      grupo={grupo}
+                                      selectedItems={selectedItems}
+                                      handleRowClick={handleRowClick}
+                                      handleEliminarItem={handleEliminarItem}
+                                      setGrupoActivo={setGrupoActivo}
+                                      setItemActivo={setItemActivo}
+                                      setOpenItemModal={setOpenItemModal}
+                                      handleGhostEnter={handleGhostEnter}
+                                      handleGhostLeave={handleGhostLeave}
+                                      hoverTimerRef={hoverTimerRef}
+                                      setGhostItem={setGhostItem}
+                                      highlightId={highlightId}
+                                    />
+                                ))}
+
+
+                                {ghostItem && (
+                                  <GhostPreview
+                                    item={ghostItem.item}
+                                    anchor={ghostItem.anchor}
+                                    onEdit={() => {
+                                      setGrupoActivo(ghostItem.cog);
+                                      setItemActivo(ghostItem.item);
+                                      setOpenItemModal(true);
+                                      setGhostItem(null);
+                                    }}
                                   />
-                              ))}
+                                )}
 
+                                {/* SUBTOTAL - Informativo */}
+                                <tr className="bg-slate-50 text-[10px] border-b border-slate-200">
+                                  <td colSpan={7} className="px-4 py-1 text-right font-bold text-slate-600 uppercase tracking-tight">
+                                    Subtotal {tipo}:
+                                  </td>
+                                  <td className="px-2 py-1 text-right pr-3 font-extrabold text-slate-900 border-l border-slate-200">
+                                    {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="bg-white"></td>
+                                </tr>
 
-                              {ghostItem && (
-                                <GhostPreview
-                                  item={ghostItem.item}
-                                  anchor={ghostItem.anchor}
-                                  onEdit={() => {
-                                    setGrupoActivo(ghostItem.cog);
-                                    setItemActivo(ghostItem.item);
-                                    setOpenItemModal(true);
-                                    setGhostItem(null);
-                                  }}
-                                />
-                              )}
+                                {/* TOTAL GRUPO - Fuerte énfasis */}
+                                <tr className="bg-white border-b-4 border-slate-200">
+                                  <td colSpan={5} className="bg-white border-r border-transparent"></td>
+                                  <td className="py-2 text-center border-x border-slate-200 bg-teal-50/20">
+                                    <div className="text-[8px] text-slate-500 uppercase font-black leading-none mb-1">Cant.</div>
+                                    <span className="bg-teal-600 text-white px-2 py-0.5 rounded font-black text-xs shadow-sm">
+                                      {canGrupo}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-black text-slate-900 uppercase tracking-tighter text-xs">
+                                    Total {tipo}:
+                                  </td>
+                                  <td className="px-2 py-2 text-right pr-3 font-black text-teal-700 text-[13px] border-l-4 border-teal-600 bg-teal-50/50">
+                                    {totalPorGrupo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="bg-white"></td>
+                                </tr>
+                              </React.Fragment>
+                            );
+                          })}
+                        </SortableContext> 
+                      </DndContext>
 
-                              {/* SUBTOTAL - Informativo */}
-                              <tr className="bg-slate-50 text-[10px] border-b border-slate-200">
-                                <td colSpan={7} className="px-4 py-1 text-right font-bold text-slate-600 uppercase tracking-tight">
-                                  Subtotal {tipo}:
-                                </td>
-                                <td className="px-2 py-1 text-right pr-3 font-extrabold text-slate-900 border-l border-slate-200">
-                                  {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </td>
-                                <td className="bg-white"></td>
-                              </tr>
-
-                              {/* TOTAL GRUPO - Fuerte énfasis */}
-                              <tr className="bg-white border-b-4 border-slate-200">
-                                <td colSpan={5} className="bg-white border-r border-transparent"></td>
-                                <td className="py-2 text-center border-x border-slate-200 bg-teal-50/20">
-                                  <div className="text-[8px] text-slate-500 uppercase font-black leading-none mb-1">Cant.</div>
-                                  <span className="bg-teal-600 text-white px-2 py-0.5 rounded font-black text-xs shadow-sm">
-                                    {canGrupo}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2 text-right font-black text-slate-900 uppercase tracking-tighter text-xs">
-                                  Total {tipo}:
-                                </td>
-                                <td className="px-2 py-2 text-right pr-3 font-black text-teal-700 text-[13px] border-l-4 border-teal-600 bg-teal-50/50">
-                                  {totalPorGrupo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </td>
-                                <td className="bg-white"></td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </SortableContext> 
-                    </DndContext>
-
-                    {/* TOTAL GENERAL COTIZACIÓN */}
-                    <tr className="bg-slate-900 text-white shadow-2xl border-t-2 border-slate-500">
-                      <td colSpan={7} className="px-6 py-4 text-right">
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] text-teal-500 font-black uppercase tracking-[0.2em] mb-1">Consolidado Final</span>
-                          <span className="text-sm font-black tracking-widest leading-none">TOTAL GENERAL COTIZACIÓN</span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-4 text-right pr-4 border-l border-slate-700 bg-slate-800">
-                        <span className="text-xl font-black text-white-400 drop-shadow-sm">
-                          {totalGeneral.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </span>
-                      </td>
-                      <td className="bg-slate-900"></td>
-                    </tr>
-                  </tbody>
-                </table>
+                      {/* TOTAL GENERAL COTIZACIÓN */}
+                      <tr className="bg-slate-900 text-white shadow-2xl border-t-2 border-slate-500">
+                        <td colSpan={7} className="px-6 py-4 text-right">
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-teal-500 font-black uppercase tracking-[0.2em] mb-1">Consolidado Final</span>
+                            <span className="text-sm font-black tracking-widest leading-none">TOTAL GENERAL COTIZACIÓN</span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 text-right pr-4 border-l border-slate-700 bg-slate-800">
+                          <span className="text-xl font-black text-white-400 drop-shadow-sm">
+                            {totalGeneral.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="bg-slate-900"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </CardContent>
+            </div>
           </TabsContent>
         )}
 
@@ -2959,9 +3205,11 @@ export default function InfoTabs({
 
                           <button
                             type="button"
-                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition-colors"
+                            onClick={onReporteServicios}
+                            title="Reporte General"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all shadow-sm"
                           >
-                            <RefreshCcw className="h-4 w-4 text-emerald-400" />
+                            <ClipboardList className="h-3.5 w-3.5 text-indigo-600" />
                           </button>
                         </div>
                       </th>
@@ -3191,43 +3439,6 @@ export default function InfoTabs({
                       <ButtonAction onClick={() => setOpenRetornar(true)} color="rose" icon={<SquareArrowDown size={18} />} text="Retornar para su corrección" />
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* SECCIÓN: REPORTES */}
-              <div className="group">
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="bg-white shadow-sm border border-cyan-600 px-3 py-1 rounded-lg">
-                    <h3 className="text-xs font-black text-cyan-700 tracking-widest uppercase">Reportes</h3>
-                  </div>
-                  <div className="flex-grow h-[1px] bg-gradient-to-r from-cyan-600 to-transparent"></div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                  <div className="flex flex-col space-y-2.5">
-                    {acciones.reporteSuministros && (
-                      <ButtonAction onClick={onReporteSuministros} color="cyan" icon={<FileText size={18} />} text="Reporte Suministros" />
-                    )}
-
-                    {acciones.reporteServicios && (
-                      <ButtonAction onClick={onReporteServicios} color="purple" icon={<FileText size={18} />} text="Reporte Servicios" />
-                    )}
-                  </div>
-                  <div className="flex flex-col space-y-2.5">
-                    {acciones.reporteDetallado && (
-                      <ButtonAction onClick={onReporteDetallado} color="amber" icon={<FileText size={18} />} text="Reporte Detallado de Cotización" />
-                    )}
-                    {acciones.reporteResumen && (
-                      <ButtonAction onClick={onReporteResumen} color="red" icon={<FileText size={18} />} text="Reporte de Resumen" />
-                    )}
-                    {acciones.reporteVentaTotal && (
-                      <ButtonAction onClick={onReporteVentaTotal} color="red" icon={<FileText size={18} />} text="Reporte Venta Total" />
-                    )}
-                    {acciones.reporteVentaParcial && (
-                      <ButtonAction onClick={onReporteVentaParcial} color="red" icon={<FileText size={18} />} text="Reporte Venta Parcial" />
-                    )}
-                  </div>
-
                 </div>
               </div>
 

@@ -45,7 +45,6 @@ export default function SeguimientoCotizacionesModal({ open, onClose, cotizacion
       );
 
       setData(res.data);
-      console.log("DETALLE CARGADO:", res.data);
 
     } catch (err) {
       console.error("Error cargando detalles de cotización:", err);
@@ -77,7 +76,6 @@ export default function SeguimientoCotizacionesModal({ open, onClose, cotizacion
       const arr = Array.isArray(res.data) ? res.data : [];
       setSuministros(arr);
 
-      console.log("Suministros cargados:", arr);
 
     } catch (err) {
       console.error("Error cargando suministros:", err);
@@ -99,8 +97,6 @@ export default function SeguimientoCotizacionesModal({ open, onClose, cotizacion
 
       // Guardar directamente el objeto con tituloGeneral y subgrupos
       setServicios(res.data);
-
-      console.log("Servicios cargados:", res.data);
 
     } catch (err) {
       console.error("Error cargando servicios:", err);
@@ -149,25 +145,12 @@ export default function SeguimientoCotizacionesModal({ open, onClose, cotizacion
 
     const reg = data?.num_reg || cotizacion?.num_reg;
 
-    console.log("USANDO num_reg PARA SUMINISTROS Y SERVICIOS:", reg);
 
     if (reg) {
       fetchSuministros(reg);
       fetchServicios(reg);
     }
   }, [open, data?.num_reg, cotizacion?.num_reg]);
-
-  // Debug general
-  useEffect(() => {
-    console.log(
-      "DATA FINAL DEL MODAL:",
-      JSON.stringify(
-        { detalle: data, suministros, servicios },
-        null,
-        2
-      )
-    );
-  }, [data, suministros, servicios]);
   
     return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -213,7 +196,6 @@ export default function SeguimientoCotizacionesModal({ open, onClose, cotizacion
               onClose={() => setOpenCondiciones(false)}
               condicionesIniciales={data?.acu_e}   // ← AQUÍ ESTÁ EL FIX
               onAceptar={(nuevoTexto) => {
-                console.log("Nuevo texto:", nuevoTexto);
                 setOpenCondiciones(false);
               }}
             />

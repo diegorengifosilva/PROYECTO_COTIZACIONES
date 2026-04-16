@@ -88,9 +88,15 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
   useEffect(() => {
     if (!open) return;
 
+    console.log(">>> [MODAL ITEM] Props de Envío recibidas:", {
+      tipoVenta,
+      costoEnvioGrupo,
+      // env_tot, // La nueva prop que añadiste
+      sumaVentaGrupo,
+      idItem: item?.id
+    });
+
     if (item) {
-      console.log("📦 Item recibido en el modal:", item);
-      
       const inicial = {
         ...getEmptyForm(),
         id: item.id,
@@ -102,24 +108,22 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
         unidad: item.tde ?? "UNI",
         cantidad: item.can ?? 1,
         costoPrecio: item.puc ?? 0,
-        porcentaje: item.cau ?? 20, // Usamos el porcentaje que viene de DB
+        porcentaje: item.cau ?? 20,
         entrega: item.ent ?? "",
         entrega_uni: item.enu ?? "D",
         observacion: item.obs ?? "",
+        costoEnvio: item.cost_env ?? 0,
+        porcentajeEnvio: item.por_env ?? 0,
+        costoConEnvio: item.cost_c_env ?? 0,
       };
 
-      // CRÍTICO: Ejecutar el cálculo inmediatamente con los datos del grupo
-      setForm(calcularValores(
-        inicial, 
-        null, 
-        tipoVenta, 
-        costoEnvioGrupo, 
-        sumaVentaGrupo
-      ));
+      // Esto fuerza a que el modal "se entere" de los cambios globales del jefe
+      // apenas se abre, recalculando con los props actuales.
+      setForm(calcularValores(inicial, null, tipoVenta, costoEnvioGrupo, sumaVentaGrupo));
     } else {
       resetForm();
     }
-  }, [open, item]); // Solo cuando abre o cambia el item
+  }, [open, item, costoEnvioGrupo, sumaVentaGrupo]); // Agregamos estas dependencias
 
   // Nueva función de cálculo unificada
   const calcularValores = (
@@ -134,21 +138,42 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
     const costoPrecio = toNumber(next.costoPrecio);
     
     // ==========================================
-    // CASO 1 Y 2
+    // CASO 1 Y 2: LOGÍSTICA DE GRUPO
     // ==========================================
     if (tipoVenta === "T" || tipoVenta === "P") {
       let costoEnvioUnitario = 0;
 
       if (tipoVenta === "T") {
-        const ratioEnvio = sumaVentaGrupo > 0 ? (costoPrecio / sumaVentaGrupo) : 0;
-        next.porcentajeEnvio = (ratioEnvio * 100).toFixed(2);
-        costoEnvioUnitario = costoEnvioGrupo * ratioEnvio;
+          const costoTotalLineaActual = costoPrecio * cantidad;
+
+          // 1. Determinamos cuánto pesa esta línea en el grupo (sin dividir por cantidad aún)
+          const valorAnteriorEnSuma = item?.toc ? toNumber(item.toc) : 0;
+          const sumatoriaReal = (sumaVentaGrupo - valorAnteriorEnSuma) + costoTotalLineaActual;
+          
+          const divisor = sumatoriaReal > 0 ? sumatoriaReal : costoTotalLineaActual;
+
+          // 2. RATIO DE LA LÍNEA (Peso total del renglón sobre el total del grupo)
+          // Ejemplo Excel: 8504.64 / 22858.34 = 0.372 (37.2%)
+          const ratioPesoLinea = divisor > 0 ? (costoTotalLineaActual / divisor) : 0;
+
+          // 3. PORCENTAJE DE ENVÍO (Visual)
+          // Calculamos el porcentaje por unidad y aplicamos formato
+          const porcentajeCalculado = (ratioPesoLinea * 100) / cantidad;
+
+          next.porcentajeEnvio = `${porcentajeCalculado.toFixed(2)}%`;
+
+          // 4. COSTO ENVÍO UNITARIO
+          // (Costo Total Envío Grupo * Peso de la Línea) / Cantidad de la línea
+          // Ejemplo: (300 * 0.372) / 4 = 111.6 / 4 = 27.90
+          costoEnvioUnitario = cantidad > 0 ? (costoEnvioGrupo * ratioPesoLinea) / cantidad : 0;
+
       } else {
-        // Tipo "P"
+        // Tipo "P" (Parcial/Unitario): El costo de envío total se divide entre las unidades
         costoEnvioUnitario = cantidad > 0 ? costoEnvioGrupo / cantidad : 0;
         next.porcentajeEnvio = (costoPrecio > 0) ? ((costoEnvioUnitario / costoPrecio) * 100).toFixed(2) : "0.00";
       }
 
+      // --- El resto del cálculo se mantiene igual ---
       const costoConEnvio = costoPrecio + costoEnvioUnitario;
       let porcentajeUtil = toNumber(next.porcentaje);
       let utilidadUnit = (costoConEnvio * porcentajeUtil) / 100;
@@ -168,9 +193,7 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
       next.costoConEnvio = costoConEnvio.toFixed(2);
       next.ventaPrecio = ventaPrecio.toFixed(2);
       next.ventaTotal = (ventaPrecio * cantidad).toFixed(2);
-      
-      // Utilidad Total = (Venta Unit - Costo con Envío Unit) * Cantidad
-      next.utilidadTotal = ((ventaPrecio - costoConEnvio) * cantidad).toFixed(2);
+      next.utilidadTotal = (utilidadUnit * cantidad).toFixed(2);
 
       return next;
     }
@@ -210,7 +233,10 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => {
-      const actualizado = { ...prev, [name]: value };
+      // Si el usuario borra todo el input, mandamos 0 para el cálculo pero guardamos "" para el input
+      const valorParaCalculo = value === "" ? 0 : value;
+      const actualizado = { ...prev, [name]: valorParaCalculo };
+      
       return calcularValores(
         actualizado,
         name,
@@ -222,53 +248,38 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
   };
 
   const handleSubmit = () => {
-    // 1. Validaciones básicas
     if (!form.descripcion.trim() || !form.cantidad) return;
 
-    // 2. Mapeo de campos: Frontend -> Backend (Django)
+    // Calculamos una última vez para asegurar que todo esté fresco antes de enviar
+    const dataFinalizada = calcularValores(form, null, tipoVenta, costoEnvioGrupo, sumaVentaGrupo);
+
     const itemDataFinal = {
-      ...form,
-      
-      // Textos e Identificadores
-      cod: form.codigo,
-      des: form.descripcion,
-      pro: form.marca,
-      tpr: form.proveedor, 
-      tde: form.unidad,
-      obs: form.observacion,
-      
-      // Cantidades y Tiempos
-      can: toNumber(form.cantidad),
-      ent: form.entrega,
-      enu: form.entrega_uni,
+      ...dataFinalizada,
+      // Mapeo exacto para Django
+      cod: dataFinalizada.codigo,
+      des: dataFinalizada.descripcion,
+      pro: dataFinalizada.marca,
+      tpr: dataFinalizada.proveedor, 
+      tde: dataFinalizada.unidad,
+      obs: dataFinalizada.observacion,
+      can: toNumber(dataFinalizada.cantidad),
+      ent: dataFinalizada.entrega,
+      enu: dataFinalizada.entrega_uni,
 
-      // Montos Económicos
-      puc: toNumber(form.costoPrecio),
-      toc: toNumber(form.costoTotal),
-      cau: toNumber(form.porcentaje),
-      tou: toNumber(form.utilidad),
-      val: toNumber(form.ventaPrecio),
-      tot: toNumber(form.ventaTotal),
+      // Montos: Forzamos toNumber para que no viajen como Strings de .toFixed()
+      puc: toNumber(dataFinalizada.costoPrecio),
+      toc: toNumber(dataFinalizada.costoTotal),
+      cau: toNumber(dataFinalizada.porcentaje),
+      tou: toNumber(dataFinalizada.utilidad),
+      val: toNumber(dataFinalizada.ventaPrecio),
+      tot: toNumber(dataFinalizada.ventaTotal),
       
-      // Logística (Forzando número)
-      cost_env: parseFloat(form.costoEnvio) || 0,
-      por_env: parseFloat(form.porcentajeEnvio) || 0,
-      cost_c_env: parseFloat(form.costoConEnvio) || 0,
-
-      // Informativos
-      utilidadTotal: form.utilidadTotal,
-      costoConEnvio: form.costoConEnvio
+      // Logística: Estos son los que el padre necesita recalculados
+      cost_env: toNumber(dataFinalizada.costoEnvio),
+      por_env: toNumber(dataFinalizada.porcentajeEnvio),
+      cost_c_env: toNumber(dataFinalizada.costoConEnvio)
     };
 
-    // 🚀 LOG PROVISIONAL: Abre la consola del navegador (F12) para ver esto
-    console.log("📤 ENVIANDO ITEM AL PADRE:", {
-      cost_env: itemDataFinal.cost_env,
-      por_env: itemDataFinal.por_env,
-      cost_c_env: itemDataFinal.cost_c_env,
-      payload_completo: itemDataFinal
-    });
-
-    // 3. Enviar al padre y cerrar
     onConfirm(itemDataFinal);
     handleClose();
   };
@@ -344,9 +355,7 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
   }, [form.codigo, form.proveedor, open, tcamb, item]);
 
   useEffect(() => {
-    // Si el modal no está abierto o no hay descripción/costo, no forzamos cálculo
-    // Esto evita que al abrir, el estado inicial se machaque con ceros
-    if (!open || !form.costoPrecio) return;
+    if (!open) return; // Quitamos la validación de costoPrecio
 
     setForm(prev =>
       calcularValores(
@@ -357,7 +366,7 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
         sumaVentaGrupo
       )
     );
-  }, [tipoVenta, costoEnvioGrupo, sumaVentaGrupo]);
+  }, [open, tipoVenta, costoEnvioGrupo, sumaVentaGrupo]); // Agregamos 'open' para el primer render
 
   if (!open) return null;
 
@@ -501,7 +510,7 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
                       value={form.costoEnvio} 
                       onChange={handleChange}
                       className={tipoVenta === "T" ? "bg-gray-100 font-semibold text-gray-500" : "bg-blue-50/50 font-semibold"}
-                      readOnly={tipoVenta === "T"} // En T es automático, en P es manual
+                      readOnly //={tipoVenta === "T"} // En T es automático, en P es manual
                     />
 
                     {/* % Envío: SOLO visible si es Tipo T */}
@@ -517,7 +526,6 @@ function RegistroItemModal({ open, onClose, onConfirm, item, num_reg, tipoVenta,
                         className="bg-gray-50 text-gray-400 font-medium"
                       />
                     ) : (
-                      /* Espaciador para mantener la cuadrícula si es tipo P */
                       <div /> 
                     )}
                   </div>

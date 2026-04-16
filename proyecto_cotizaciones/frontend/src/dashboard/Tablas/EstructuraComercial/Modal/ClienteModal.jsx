@@ -15,7 +15,7 @@ export default function ClienteModal({ open, onClose, onGuardar, onEliminar, cli
                 // MODO EDICIÓN
                 setFormData({
                     ...clienteData,
-                    activo: String(clienteData.activo ?? "1"),
+                    activo: String(clienteData.activo === true || clienteData.activo === "1" ? "1" : "0"),
                 });
             } else {
                 // MODO NUEVO: Cálculo del siguiente código
@@ -53,12 +53,15 @@ export default function ClienteModal({ open, onClose, onGuardar, onEliminar, cli
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         
-        // BLOQUEO DE LONGITUD PARA RUC
+        // Bloqueo de longitud para RUC
         if (name === "ruc" && value.length > 11) return; 
 
         setFormData((prev) => ({
             ...prev,
-            [name]: type === "checkbox" ? (checked ? "1" : "0") : value,
+            // Si es el campo 'activo', ignoramos 'value' y usamos 'checked'
+            [name]: name === "activo" 
+                ? (checked ? "1" : "0") 
+                : (type === "checkbox" ? (checked ? "1" : "0") : value),
         }));
     };
 
@@ -87,8 +90,7 @@ export default function ClienteModal({ open, onClose, onGuardar, onEliminar, cli
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl bg-white rounded-2xl shadow-2xl border-none p-0 overflow-hidden font-sans">
-                
+            <DialogContent className="max-w-3xl bg-white rounded-2xl shadow-2xl border-none p-0 overflow-hidden font-sans">   
                 {/* HEADER */}
                 <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
@@ -107,7 +109,6 @@ export default function ClienteModal({ open, onClose, onGuardar, onEliminar, cli
                 </div>
 
                 <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto custom-scrollbar">
-                
                     {/* BLOQUE 1: IDENTIFICACIÓN */}
                     <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-4 shadow-inner">
                         <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight block border-b border-slate-200 pb-2">
@@ -240,7 +241,6 @@ export default function ClienteModal({ open, onClose, onGuardar, onEliminar, cli
                             </label>
                         </div>
                     </div>
-
                 </div>
 
                 {/* FOOTER */}

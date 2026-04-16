@@ -21,8 +21,6 @@ export default function TipoPersonalModal({ open, onClose, onSelect, areaSelecci
     useEffect(() => {
         if (!open) return;
 
-        console.log("Área seleccionada enviada al modal:", areaSeleccionada);
-
         const fetchTipoPersonal = async () => {
         setLoading(true);
         try {

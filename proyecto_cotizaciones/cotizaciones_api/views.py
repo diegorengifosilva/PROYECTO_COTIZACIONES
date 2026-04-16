@@ -20,6 +20,8 @@ import shutil
 from docxtpl import DocxTemplate, RichText
 import jinja2
 
+from unidecode import unidecode
+
 # ─── Librerías de terceros ──────────────────────────
 from reportlab.pdfgen import canvas
 
@@ -32,8 +34,8 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.utils import timezone
-from django.db.models import Sum, Count, Q, F, Max, DecimalField, ExpressionWrapper
-from django.db.models.functions import TruncDate, Coalesce, ExtractMonth
+from django.db.models import Sum, Count, Q, F, Max, DecimalField, ExpressionWrapper, Func, F, Value, TextField
+from django.db.models.functions import TruncDate, Coalesce, ExtractMonth, Lower
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import transaction
@@ -104,6 +106,7 @@ from .models import (
 from .serializers import (
     DashboardCotizacionTablaSerializer,
     DashboardOportunidadTablaSerializer,
+    DashboardOportunidadSerializer,
     AreasSerializer,
     CargosSerializer,
     ClientesSerializer,
@@ -802,92 +805,55 @@ def recalcular_totales_cotizacion(request, num_reg):
 ##===============##
 ## OPORTUNIDADES ##
 ##===============##
-# ─── Dashboard Cotizaciones (versión moderna) ─────────────────────
+# ─── Dashboard Oportunidades ──────────────────────────────────────────
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def oportunidades_dashboard_view(request):
-    """
-    Dashboard + Tabla para Oportunidades con filtros flexibles.
-    Sincronizado con la estructura de vc_mov_oportunidades.
-    """
     try:
-        from datetime import date
-        from unidecode import unidecode
-        from django.db.models import Func, F, Value, TextField
-        from django.db.models.functions import Lower
-        import re
-
-        # ============================================================
         # 1) Parámetros principales
-        # ============================================================
         anno = request.GET.get("anno", date.today().year)
         mes = request.GET.get("mes", "%")
-
         cliente = request.GET.get("cliente", "%")
         estado = request.GET.get("estado", "%")
         area = request.GET.get("area", "%")
-        responsable = request.GET.get("responsable", "%")
 
-        # Mapeo de búsqueda flexible para Oportunidades
+        # Mapeo de búsqueda usando los nombres reales del modelo
         CAMPOS_BUSQUEDA = {
             "num_reg": "num_reg",
-            "codig": "codig",
-            "f_recp": "f_recp",
-            "cliente_nombre": "nombr",
-            "contac": "contac",
-            "descr": "descr",
-            "respo": "respo",
-            "monto": "monto",
-            "comen": "comen",
+            "numero": "numero",    # Antes era 'numero'
+            "referencia": "referencia", # Antes era 'referencia'
+            "nombr": "nombr",
+            "nombc": "nombc",
             "regus": "regus",
         }
 
         campo = request.GET.get("campo")
         valor = request.GET.get("valor")
-
-        fecha_inicio = request.GET.get("fechaInicio") # Basado en f_recp
+        fecha_inicio = request.GET.get("fechaInicio")
         fecha_fin = request.GET.get("fechaFin")
 
-        # ============================================================
         # 2) Query base
-        # ============================================================
-        qs = DashboardOportunidad.objects.filter(
-            anno_a=anno
-        )
+        qs = DashboardOportunidad.objects.all()
 
-        if mes != "%":
+        if str(anno) != "%":
+            qs = qs.filter(anno_a=anno)
+        if str(mes) != "%":
             qs = qs.filter(f_recp__month=mes)
-
         if cliente != "%":
-            qs = qs.filter(empre=cliente)
-
+            qs = qs.filter(empre=cliente) # Cambiado cliente_codigo -> empre
+        if area != "%":
+            qs = qs.filter(area=area)      # Cambiado area_codigo -> area
+        
         if estado != "%":
             estados = [e for e in estado.split(",") if e]
-            if len(estados) == 1:
-                qs = qs.filter(estad=estados[0])
-            else:
-                qs = qs.filter(estad__in=estados)
+            qs = qs.filter(estado_op__in=estados) # Cambiado estado_oportunidad -> estado_op
 
-        if area != "%":
-            qs = qs.filter(area=area)
-
-        if responsable != "%":
-            qs = qs.filter(respo=responsable)
-
-        # Rango de fechas (sobre fecha de recepción)
         if fecha_inicio:
             qs = qs.filter(f_recp__gte=fecha_inicio)
         if fecha_fin:
             qs = qs.filter(f_recp__lte=fecha_fin)
 
-        # ============================================================
-        # 3) Normalización de búsqueda flexible
-        # ============================================================
-        def normalizar(texto):
-            if not texto: return None
-            t = unidecode(texto.lower().strip())
-            return re.sub(r"\s+", " ", t)
-
+        # 3) Búsqueda flexible
         class Replace(Func):
             function = "REPLACE"
             arity = 3
@@ -895,93 +861,43 @@ def oportunidades_dashboard_view(request):
         if campo and valor not in (None, "", " "):
             campo_real = CAMPOS_BUSQUEDA.get(campo)
             if campo_real:
-                valor_norm = normalizar(valor)
+                valor_norm = unidecode(valor.lower().strip())
                 qs = qs.annotate(
                     campo_clean=Replace(
-                        Replace(
-                            Lower(F(campo_real)),
-                            Value("  ", output_field=TextField()),
-                            Value(" ", output_field=TextField()),
-                            output_field=TextField()
-                        ),
-                        Value("  ", output_field=TextField()),
-                        Value(" ", output_field=TextField()),
-                        output_field=TextField()
+                        Replace(Lower(F(campo_real)), Value("  "), Value(" ")),
+                        Value("  "), Value(" ")
                     )
                 ).filter(campo_clean__icontains=valor_norm)
 
-        # ============================================================
-        # 4) Dashboard Stats Oportunidades
-        # ============================================================
+        # 4) Dashboard Stats
         total = qs.count()
-        
-        # Mapeo de estados manual para el conteo de stats
-        estado_map = {"PENDIENTE": 0, "COTIZADO": 0, "PERDIDO": 0, "ADJUDICADO": 0}
-
-        meses = [0] * 12
-        monto_total_soles = 0
-        monto_total_dolares = 0
-        este_mes = 0
         hoy = date.today()
-        clientes_stats = {}
+        
+        # Sincronizado con estado_nombre del modelo
+        estado_map = {"PENDIENTE": 0, "COTIZADO": 0, "RECHAZADO": 0}
+        meses_conteo = [0] * 12
+        este_mes_count = 0
 
-        for o in qs:
-            # ===== Estados =====
-            est_nom = o.estado_nombre
-            estado_map[est_nom] = estado_map.get(est_nom, 0) + 1
+        for obj in qs:
+            # Usamos el nuevo nombre de la property: estado_nombre
+            nom_est = obj.estado_nombre
+            if nom_est in estado_map:
+                estado_map[nom_est] += 1
 
-            # ===== Montos =====
-            val_monto = float(o.monto or 0)
-            if o.tmone == "S":
-                monto_total_soles += val_monto
-            else: # Dólares por defecto
-                monto_total_dolares += val_monto
-
-            # ===== Conteo temporal =====
-            if o.f_recp:
-                idx = o.f_recp.month - 1
-                meses[idx] += 1
-                if o.f_recp.month == hoy.month:
-                    este_mes += 1
-
-            # ===== Stats por cliente =====
-            cod_cli = o.empre or "VAR"
-            nom_cli = o.nombr or "CLIENTE VARIO"
-            
-            if cod_cli not in clientes_stats:
-                clientes_stats[cod_cli] = {
-                    "cliente_codigo": cod_cli,
-                    "nombre": nom_cli,
-                    "cantidad": 0,
-                    "totalSoles": 0,
-                    "totalDolares": 0,
-                }
-            clientes_stats[cod_cli]["cantidad"] += 1
-            if o.tmone == "S":
-                clientes_stats[cod_cli]["totalSoles"] += val_monto
-            else:
-                clientes_stats[cod_cli]["totalDolares"] += val_monto
-
-        # Porcentajes por cliente
-        for c_data in clientes_stats.values():
-            c_data["porcentaje"] = round((c_data["cantidad"] / total) * 100, 2) if total else 0
+            if obj.f_recp:
+                idx = obj.f_recp.month - 1
+                meses_conteo[idx] += 1
+                if obj.f_recp.month == hoy.month and obj.f_recp.year == hoy.year:
+                    este_mes_count += 1
 
         dashboard_data = {
             "total": total,
-            "esteMes": este_mes,
-            "montoTotalSoles": round(monto_total_soles, 2),
-            "montoTotalDolares": round(monto_total_dolares, 2),
-            "promedioSoles": round(monto_total_soles / total, 2) if total else 0,
-            "promedioDolares": round(monto_total_dolares / total, 2) if total else 0,
+            "esteMes": este_mes_count,
             "estados": estado_map,
-            "porMes": meses,
-            "clientes": list(clientes_stats.values()),
+            "porMes": meses_conteo,
         }
 
-        # ============================================================
-        # 5) Serialización de Tabla
-        # ============================================================
-        # Nota: Debes crear este Serializer similar al de cotizaciones
+        # 5) Tabla de registros
         tabla_data = DashboardOportunidadTablaSerializer(
             qs.order_by("-f_recp", "-num_reg"),
             many=True
@@ -993,10 +909,26 @@ def oportunidades_dashboard_view(request):
             "anno": anno
         })
 
-    except Exception:
+    except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return Response({"error": "Error interno en el servidor de Oportunidades."}, status=500)
+        return Response({"error": "Error interno en el servidor."}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def oportunidad_detalle_view(request, num_reg):
+    try:
+        oportunidad = DashboardOportunidad.objects.get(num_reg=num_reg)
+        serializer = DashboardOportunidadSerializer(oportunidad)
+        return Response(serializer.data)
+    except DashboardOportunidad.DoesNotExist:
+        return Response({"error": "No existe la oportunidad"}, status=404)
+
+#========================================================================================
+
+##===========================##
+## GUARDAR DESDE OPORTUNIDAD ##
+##===========================##
 
 #========================================================================================
 
@@ -1008,6 +940,13 @@ def oportunidades_dashboard_view(request):
 @permission_classes([IsAuthenticated])
 def guardar_cotizacion(request):
     with transaction.atomic():
+        origen = request.data.get("origen", "C")
+
+        print("📦 Guardar desde dashboard:", origen)
+        
+        #if origen == "O":
+            #return guardar_desde_oportunidad(request)
+        
         # Capturamos el num_reg que viene del frontend
         num_reg_frontend = request.data.get("num_reg")
         cotizacion = None
@@ -1092,9 +1031,6 @@ def guardar_cotizacion(request):
         # 4️⃣ SUMINISTROS
         # =========================
         suministros = request.data.get("suministros", {})
-        
-        # 💡 Usamos el campo tven del modelo DashboardCotizacion
-        # T = Venta Total, P = Venta Parcial
         tipo_venta_general = cotizacion.tven 
 
         CotiSuministros.objects.filter(num_reg=cotizacion.num_reg).delete()
@@ -1113,8 +1049,6 @@ def guardar_cotizacion(request):
 
             cantidad_grupo = Decimal(str(grupo.get("cantidad", 0)))
             total_grupo = Decimal(str(grupo.get("total", 0)))
-            
-            # Valor que viene del modal de grupo (React)
             costo_envio_valor = Decimal(str(grupo.get("costoEnvio", 0)))
 
             # =====================
@@ -1129,20 +1063,15 @@ def guardar_cotizacion(request):
                 cod="0",
                 can=cantidad_grupo,
                 tot=total_grupo,
-
-                # 💡 Lógica basada en tven:
-                # Si tven es 'T' -> guarda en env_tot
-                # Si tven es 'P' -> guarda en env_par (Parcial)
+                # Lógica de envío en cabecera
                 env_tot=costo_envio_valor if tipo_venta_general == "T" else Decimal("0.00"),
                 env_par=costo_envio_valor if tipo_venta_general == "P" else Decimal("0.00"),
                 cost_c_env=Decimal("0.00"),
-
                 mov="01",
                 tog="0",
                 cost_env=Decimal("0.00"),
                 por_env=Decimal("0.00"),
             )
-
             num_contador += 1
 
             # =====================
@@ -1166,13 +1095,13 @@ def guardar_cotizacion(request):
                     val=Decimal(str(item.get("val", 0))),
                     tot=Decimal(str(item.get("tot", 0))),
                     
-                    # Costos unitarios por ítem
+                    # 🚩 AQUÍ ESTÁ LA CLAVE: Capturamos los nuevos campos del Payload
                     cost_env=Decimal(str(item.get("cost_env", 0))),
                     por_env=Decimal(str(item.get("por_env", 0))),
+                    cost_c_env=Decimal(str(item.get("cost_c_env", 0))), # <-- Agregado
                     
                     env_tot=Decimal("0.00"),
                     env_par=Decimal("0.00"),
-                    
                     mov="01",
                     tpr=item.get("tpr"),
                     tde=item.get("tde"),
@@ -1182,7 +1111,7 @@ def guardar_cotizacion(request):
                     obs=item.get("obs"),
                 )
                 num_contador += 1
-                
+        
         # =========================
         # 5️⃣ SERVICIOS
         # =========================
@@ -1399,7 +1328,7 @@ def guardar_cotizacion(request):
             status=status.HTTP_200_OK if not es_creacion else status.HTTP_201_CREATED
         )
 
-# ADICIONAL
+# NUM_REG COTIZACION
 def obtener_siguiente_num_reg():
     anio = timezone.now().year
 
@@ -1419,6 +1348,28 @@ def obtener_siguiente_num_reg():
 
         # 🚀 Primer registro del año
         return int(f"{anio}000001")
+
+# NUM_REG OPORTUNIDAD 
+@api_view(["GET"])
+def obtener_siguiente_num_reg_oportunidad(request):
+    anio = timezone.now().year
+    inicio = int(f"{anio}000000")
+    fin = int(f"{anio}999999")
+
+    with transaction.atomic():
+        ultimo = (
+            DashboardOportunidad.objects
+            .select_for_update()
+            .filter(num_reg__range=(inicio, fin))
+            .aggregate(max_reg=Max("num_reg"))
+        )["max_reg"]
+
+        if ultimo is not None:
+            siguiente = ultimo + 1
+        else:
+            siguiente = int(f"{anio}000001")  # Primer registro del año
+
+    return Response({"num_reg": siguiente})
 
 #========================================================================================
 
@@ -1818,6 +1769,29 @@ def build_cotizacion_pdf_context(num_reg):
         return None
 
     # =========================
+    # BUSCAR NOMBRE DEL CLIENTE (Lógica directa)
+    # =========================
+    from cotizaciones_api.models import vc_tab_clientes # El mismo del endpoint
+
+    nombre_cliente_final = cotizacion.nombr or "" # Valor por defecto
+
+    if cotizacion.cliente_codigo:
+        # Limpiamos y formateamos el código (zfill por si faltan los ceros)
+        codigo_busqueda = str(cotizacion.cliente_codigo).strip().zfill(5)
+        
+        # Buscamos directamente
+        cliente_obj = vc_tab_clientes.objects.filter(codigo=codigo_busqueda).first()
+        
+        if cliente_obj:
+            # Usamos 'nombre' que es el campo que vimos en tu Postman
+            nombre_cliente_final = cliente_obj.nombre
+        else:
+            # Si no lo encuentra con ceros, intentamos tal cual viene
+            cliente_obj = vc_tab_clientes.objects.filter(codigo=str(cotizacion.cliente_codigo).strip()).first()
+            if cliente_obj:
+                nombre_cliente_final = cliente_obj.nombre
+
+    # =========================
     # DETALLES
     # =========================
     suministros_qs = (
@@ -1834,15 +1808,29 @@ def build_cotizacion_pdf_context(num_reg):
         .iterator()
     )
 
+    # =========
+    # FECHA
+    # =========
+    MESES_ES = {
+        1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+    }
+
+    fecha_formateada = ""
+    if cotizacion.fecha:
+        f = cotizacion.fecha
+        # Formato: Día de Mes de Año -> 26 Dic. 2025
+        fecha_formateada = f"{f.day:02d} {MESES_ES[f.month]} {f.year}"
+        
     # =========================
     # CABECERA CONTEXT
     # =========================
     cabecera = {
         "numero": cotizacion.numero,
         "num_reg": cotizacion.num_reg,
-        "fecha": cotizacion.fecha,
+        "fecha": fecha_formateada,
         "referencia": cotizacion.referencia,
-        "cliente": cotizacion.cliente_codigo,
+        "cliente": nombre_cliente_final,
         "atencion": {
             "nombre": cotizacion.nombr,
             "cargo": cotizacion.cargr,
@@ -1869,6 +1857,7 @@ def build_cotizacion_pdf_context(num_reg):
             "suministros": {
                 "cantidad": cotizacion.plazo,
                 "tipo": "Días" if cotizacion.tot_d == "D" else "Semanas" if cotizacion.tot_d == "S" else "Meses",
+
             },
             "servicios": {
                 "cantidad": cotizacion.por_c,
@@ -1914,6 +1903,7 @@ def build_cotizacion_pdf_context(num_reg):
                 "titulo": s.nog,
                 "mov": s.mov,
                 "entrega":s.ent or 0,
+                "unidad_entrega": s.enu or "",
                 "cantidad": can,
                 "total": tot,
                 "total_grupo": tot * can,
@@ -1927,11 +1917,22 @@ def build_cotizacion_pdf_context(num_reg):
             pu = convertir(s.puc, cotizacion)
             tot = convertir(s.tot, cotizacion)
 
+            entrega_unidad = ""
+            if s.enu == 'D':
+                entrega_unidad = "Días" if s.ent != 1 else "Día"
+            elif s.enu == 'S':
+                entrega_unidad = "Semanas" if s.ent != 1 else "Semana"
+            elif s.enu == 'M':
+                entrega_unidad = "Meses" if s.ent != 1 else "Mes"
+            else:
+                entrega_unidad = s.enu or ""
+
             grupos[s.cog]["items"].append({
                 "codigo": s.cod,
                 "descripcion": s.des,
                 "unidad": s.tde,
                 "entrega":s.ent or 0,
+                "unidad_entrega": entrega_unidad,
                 "cantidad": s.can or 0,
                 "precio_unitario": pu,
                 "total": tot,
@@ -2149,6 +2150,9 @@ def descargar_cotizacion_word(request, num_reg):
             
             g['filas'] = g.get('items', [])
             for item in g['filas']:
+                ent_val = item.get('entrega', 0)
+                uni_val = item.get('unidad_entrega', '')
+                item['entrega_f'] = f"{ent_val} {uni_val}" if ent_val > 0 else ""
                 desc = item.get('descripcion', '') or ''
                 # Limpieza de HTML básico para descripciones de items
                 item['desc_f'] = RichText(desc.replace('<br>', '\n').replace('<br/>', '\n'))
@@ -2253,11 +2257,18 @@ def descargar_cotizacion_word(request, num_reg):
         content = buffer.getvalue()
         buffer.close()
 
+        # Extraemos cabecera del context para facilitar la lectura
+        cabecera = context.get('cabecera', {})
+        nro = cabecera.get('numero') or num_reg
+        ref = cabecera.get('referencia')
+
         response = HttpResponse(
             content,
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="Cotizacion_{num_reg}.docx"'
+        
+        # Usamos f-string para armar el nombre dinámico
+        response['Content-Disposition'] = f'attachment; filename="{nro}_{ref}.docx"'
         return response
 
     except Exception as e:
@@ -2291,8 +2302,13 @@ def cotizacion_pdf(request, num_reg):
         base_url=settings.BASE_DIR.as_uri()
     )
 
+    # Extraemos cabecera del context para facilitar la lectura
+    cabecera = context.get('cabecera', {})
+    nro = cabecera.get('numero') or num_reg
+    ref = cabecera.get('referencia')
+    
     response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = f'inline; filename="cotizacion_{num_reg}.pdf"'
+    response["Content-Disposition"] = f'inline; filename="{nro}_{ref}.pdf"'
 
     # Nota: Usamos optimización de imágenes para evitar que el PDF pese demasiado
     html.write_pdf(response)
@@ -4909,9 +4925,12 @@ def reporte_venta_total_html(request, num_reg):
                 "des": row.des,
                 "can": row.can or Decimal("0"),
                 "puc": row.puc or Decimal("0.00"),     # Costo Unitario Base
-                "env_u": row.env_par or Decimal("0.00"), # Costo Envío por Item
+                "toc": row.toc or Decimal("0.00"),      # Costo Total Base (Sin envío)
+                "por_env": row.por_env or Decimal("0.00"), # Porcentaje Envío
+                "env_u": row.cost_env or Decimal("0.00"), # Costo Envío
                 "cce": row.cost_c_env or Decimal("0.00"), # Costo Con Envío (ya calculado)
                 "util_porc": row.cau or Decimal("0.00"), # % Utilidad (cau)
+                "tou": row.tou or Decimal("0.00"),     # Utilidad (monto unitario)
                 "val": row.val or Decimal("0.00"),     # Precio Venta Unitario
                 "tot": subtotal_venta,                  # Venta Total
                 "util_money": subtotal_venta - subtotal_costo
@@ -4966,7 +4985,7 @@ def reporte_venta_parcial_html(request, num_reg):
                 "can": row.can or Decimal("0"),
                 "puc": row.puc or Decimal("0.00"),     # Costo Unitario Base
                 "toc": row.toc or Decimal("0.00"),     # Costo Total Base
-                "env_u": row.cost_env or Decimal("0.00"), # Costo Envío (según modal)
+                "env_u": row.cost_env or Decimal("0.00"), # Costo Envío
                 "cce": row.cost_c_env or Decimal("0.00"), # Costo con Envío
                 "util_porc": row.cau or Decimal("0.00"),  # % Utilidad
                 "util_money": row.tou or Decimal("0.00"), # Utilidad (monto unitario)

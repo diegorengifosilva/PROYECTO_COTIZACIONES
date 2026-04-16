@@ -145,6 +145,7 @@ class DashboardCotizacion(models.Model):
     teler = models.CharField(max_length=50, blank=True, null=True, db_column="teler")
     movir = models.CharField(max_length=50, blank=True, null=True, db_column="movir")
     mailr = models.CharField(max_length=50, blank=True, null=True, db_column="mailr")
+
     prob = models.CharField(max_length=1, blank=True, null=True, db_column="prob")
     cotit = models.CharField(max_length=1, blank=True, null=True, db_column="cotit")
     tven = models.CharField(max_length=1, blank=True, null=True, db_column="tven")
@@ -404,71 +405,96 @@ class CotiSeguimiento(models.Model):
 ## OPORTUNIDADES ##
 ##===============##
 class DashboardOportunidad(models.Model):
-    # ── IDENTIFICACIÓN ──────────────────
+    # ── IDENTIFICACIÓN ──────────────────────────
     num_reg = models.AutoField(primary_key=True, db_column="num_reg")
-    codig = models.CharField(max_length=70, db_column="codig", blank=True, null=True)
-    
-    # ── FECHAS ──────────────────────
+    num_reg_cot = models.IntegerField(db_column="num_reg_cot", blank=True, null=True)
+    numero = models.CharField(max_length=70, db_column="cotin", blank=True, null=True) 
+    fecha = models.DateField(db_column="cotif", blank=True, null=True)
+    referencia = models.CharField(max_length=150, db_column="refer", blank=True, null=True)
+
+    # ── SEGUIMIENTO (El núcleo) ──────────────────
     f_recp = models.DateField(db_column="f_recp", default=timezone.now)
-    f_visit = models.DateField(db_column="f_visit", blank=True, null=True)
-    f_limit = models.DateField(db_column="f_limit", blank=True, null=True)
-    f_emisi = models.DateField(db_column="f_emisi", blank=True, null=True)
-
-    # ── CLIENTE ─────────────────────────────
-    empre = models.CharField(max_length=10, blank=True, null=True, db_column="empre")
-    nombr = models.CharField(max_length=150, blank=True, null=True, db_column="nombr") 
-    contac = models.CharField(max_length=150, blank=True, null=True, db_column="contac")
+    f_limite = models.DateField(db_column="f_limite", blank=True, null=True)
+    f_emi = models.DateField(db_column="f_emi", blank=True, null=True)
+    estado_op = models.IntegerField(db_column="estado_op", default=0)
+    coment = models.TextField(db_column="coment", blank=True, null=True)
     
-    # ── DETALLES ─────────────────────
-    descr = models.TextField(db_column="descr", blank=True, null=True)
-    tipo = models.CharField(max_length=1, blank=True, null=True, db_column="tipo") 
-    area = models.CharField(max_length=1, blank=True, null=True, db_column="area")
-    
-    # ── ESTADO Y GESTIÓN ───────────────────────────
-    estad = models.CharField(max_length=1, blank=True, null=True, db_column="estad")
-    respo = models.CharField(max_length=100, blank=True, null=True, db_column="respo")
-    comen = models.TextField(blank=True, null=True, db_column="comen")
+    # ── CLASIFICACIÓN Y ESTADO COMERCIAL ──────────
+    prob = models.CharField(max_length=1, db_column="prob", blank=True, null=True)
+    cotit = models.CharField(max_length=1, db_column="cotit", blank=True, null=True) # P/S/V
+    tven = models.CharField(max_length=1, db_column="tven", blank=True, null=True)
+    area_codigo = models.CharField(max_length=1, db_column="area", blank=True, null=True)
+    estado_codigo = models.CharField(max_length=1, db_column="estad", blank=True, null=True) # Estado de coti (1-6)
+    envio = models.IntegerField(db_column="envio", default=0)
 
-    # ── VALORES ────────────────────────────
-    monto = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, db_column="monto")
-    tmone = models.CharField(max_length=1, blank=True, null=True, db_column="tmone") 
-    
-    # ── FILTROS ──────────
-    anno_a = models.CharField(max_length=4, blank=True, null=True, db_column="anno_a")
-    mes = models.CharField(max_length=2, blank=True, null=True, db_column="mes")
-    regus = models.CharField(max_length=200, blank=True, null=True, db_column="regus")
+    # ── CLIENTE Y CONTACTO ────────────────────────
+    empre = models.CharField(max_length=10, db_column="empre", blank=True, null=True)
+    nombr = models.CharField(max_length=150, db_column="nombr", blank=True, null=True)
+    cargr = models.CharField(max_length=70, db_column="cargr", blank=True, null=True)
+    codir = models.CharField(max_length=5, db_column="codir", blank=True, null=True)
+    teler = models.CharField(max_length=50, db_column="teler", blank=True, null=True)
+    movir = models.CharField(max_length=50, db_column="movir", blank=True, null=True)
+    mailr = models.CharField(max_length=50, db_column="mailr", blank=True, null=True)
 
-    # ── MAPPINGS PARA EL FRONTEND ─────────
+    # ── PAGO / MONEDA / TOTALES ──────────────────
+    tot_c = models.DecimalField(max_digits=12, decimal_places=2, db_column="tot_c", blank=True, null=True)
+    fpago = models.CharField(max_length=50, db_column="fpago", blank=True, null=True)
+    lugar = models.CharField(max_length=100, db_column="lugar", blank=True, null=True)
+    tmone = models.CharField(max_length=20, db_column="tmone", blank=True, null=True)
+    tcamb = models.DecimalField(max_digits=7, decimal_places=3, db_column="tcamb", blank=True, null=True)
+    igv = models.CharField(max_length=1, db_column="igv", blank=True, null=True)
+
+    # ── TIEMPOS DE ENTREGA Y VALIDEZ ─────────────
+    plazo = models.IntegerField(db_column="plazo", blank=True, null=True)
+    tot_d = models.CharField(max_length=1, db_column="tot_d", blank=True, null=True)
+    por_c = models.IntegerField(db_column="por_c", blank=True, null=True)
+    tot_s = models.CharField(max_length=1, db_column="tot_s", blank=True, null=True)
+    valid = models.IntegerField(db_column="valid", blank=True, null=True)
+    acu_s = models.CharField(max_length=1, db_column="acu_s", blank=True, null=True)
+
+    # ── RESPONSABLES (Comercial y Técnico) ────────
+    codic = models.CharField(max_length=8, db_column="codic", blank=True, null=True)
+    nombc = models.CharField(max_length=150, db_column="nombc", blank=True, null=True)
+    codit = models.CharField(max_length=8, db_column="codit", blank=True, null=True)
+    nombt = models.CharField(max_length=150, db_column="nombt", blank=True, null=True)
+
+    # ── DESCUENTOS Y ADICIONALES ─────────────────
+    des_a = models.CharField(max_length=1, db_column="des_a", blank=True, null=True)
+    des_t = models.CharField(max_length=1, db_column="des_t", blank=True, null=True)
+    des_m = models.DecimalField(max_digits=11, decimal_places=2, db_column="des_m", blank=True, null=True)
+    des_p = models.DecimalField(max_digits=11, decimal_places=2, db_column="des_p", blank=True, null=True)
+    acu_e = models.TextField(db_column="acu_e", blank=True, null=True)
+
+    # ── METADATOS ───────────────────────────────
+    regus = models.CharField(max_length=200, db_column="regus", blank=True, null=True)
+    anno = models.CharField(max_length=4, db_column="anno", blank=True, null=True)
+    mes = models.CharField(max_length=2, db_column="mes", blank=True, null=True)
+    anno_a = models.CharField(max_length=4, db_column="anno_a", default="2026")
+
+    # ── PROPIEDADES (Para Dashboard y Selects) ──
     @property
     def area_nombre(self):
-        mapping = {
-            "1": "Industria", 
-            "2": "Mineria", 
-            "3": "Mantenimiento",
-            "4": "Petroquimica", 
-            "8": "Seguridad de Maquinaria"
-        }
-        return mapping.get(self.area, "OTRO")
+        mapping = {"1": "Industria", "2": "Mineria", "3": "Mantenimiento", "4": "Petroquimica", "8": "Seguridad de Maquinaria"}
+        return mapping.get(self.area, "")
 
     @property
     def estado_nombre(self):
-        mapping = {
-            "1": "PENDIENTE", 
-            "2": "COTIZADO", 
-            "3": "PERDIDO", 
-            "4": "ADJUDICADO"
-        }
-        return mapping.get(self.estad, "OTRO")
+        # 0: Pendiente, 1: No Cotizado, 2: Rechazado, 3: Cotizado
+        mapping = {0: "PENDIENTE", 1: "NO COTIZADO", 2: "RECHAZADO", 3: "COTIZADO"}
+        return mapping.get(self.estado_op, "PENDIENTE")
+
+    @property
+    def prob_nombre(self):
+        mapping = {"0": "Baja", "1": "Media", "2": "Alta", "3": "Muy Alta"}
+        return mapping.get(self.prob, "")
+
+    @property
+    def igv_nombre(self):
+        return "Incluye" if self.igv == "S" else "No Incluye"
 
     class Meta:
         managed = False 
         db_table = "vc_mov_oportunidades"
-        verbose_name = "Oportunidad Comercial"
-        verbose_name_plural = "Oportunidades Comerciales"
-        ordering = ["-f_recp"]
-
-    def __str__(self):
-        return f"OP {self.codig} | {self.empre}"
 
 #========================================================================================
 

@@ -158,17 +158,23 @@
             {% for item in grupo.items %}
             <tr>
                 <td class="text-center">{{ forloop.counter }}</td>
-                <td style="font-size: 10.5px;">{{ item.des }}</td>
+                <td style="font-size: 10px; max-width: 300px;">{{ item.des }}</td>
                 <td class="text-center">{{ item.can|floatformat:0 }}</td>
-                <td class="text-right">{{ item.puc|floatformat:2|intcomma }}</td>
-                <td class="text-right">{{ item.toc|floatformat:2|intcomma }}</td>
-                <td class="text-right">{{ item.por_env|floatformat:2 }}%</td>
-                <td class="text-right">{{ item.env_u|floatformat:2|intcomma }}</td>
-                <td class="text-right font-bold">{{ item.cce|floatformat:2|intcomma }}</td>
+                <td class="text-center">{{ item.puc|floatformat:2|intcomma }}</td>
+                <td class="text-center">{{ item.toc|floatformat:2|intcomma }}</td>
+                <td class="text-center">{{ item.por_env|floatformat:2 }}%</td>
+                <td class="text-center">{{ item.env_u|floatformat:2|intcomma }}</td>
+                <td class="text-center font-bold" style="background-color: #fafafa;">
+                    {{ item.cce|floatformat:2|intcomma }}
+                </td>
+                
                 <td class="text-center">{{ item.util_porc|floatformat:0 }}%</td>
-                <td class="text-right">{{ item.util_money|floatformat:2|intcomma }}</td>
-                <td class="text-right">{{ item.val|floatformat:2|intcomma }}</td>
-                <td class="text-right font-bold" style="color: #0f766e;">{{ item.tot|floatformat:2|intcomma }}</td>
+                <td class="text-center">{{ item.tou|floatformat:2|intcomma }}</td>
+                
+                <td class="text-center">{{ item.val|floatformat:2|intcomma }}</td>
+                <td class="text-center font-bold" style="color: #0f766e; background-color: #f0fdfa;">
+                    {{ item.tot|floatformat:2|intcomma }}
+                </td>
             </tr>
             {% endfor %}
         {% endfor %}

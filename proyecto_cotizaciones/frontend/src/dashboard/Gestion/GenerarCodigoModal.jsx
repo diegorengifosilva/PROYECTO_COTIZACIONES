@@ -53,16 +53,26 @@ export default function GenerarCodigoModal({
   }, [open, numReg, codigoExistente]);
 
   // =========================
-  // GUARDAR
+  // GUARDAR (DENTRO DE GenerarCodigoModal)
   // =========================
-  const handleAceptar = () => {
+  const handleAceptar = async () => { // 1. Agregamos async
     if (codigoExistente) {
       onClose();
       return;
     }
 
-    if (onGuardado) onGuardado();
-    onClose();
+    if (onGuardado) {
+      try {
+        setLoading(true); // 2. Activamos el loading local
+        await onGuardado(); // 3. Esperamos a que la mutación del padre termine
+        onClose(); // 4. Recién cerramos cuando el SUCCESS del padre ocurra
+      } catch (error) {
+        // No necesitas hacer nada aquí, el onError del padre ya lanza el toast
+        console.error("Error al guardar:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return (

@@ -60,31 +60,42 @@ function RegistroItemManoObraModal({ open, onClose, onConfirm, item, areaCotizac
     if (!open) return;
 
     if (item) {
-      // ✏️ MODO EDICIÓN: cargamos los datos del item existente
+      // ✏️ MODO EDICIÓN: Sincronización forzada con el área de la cotización
+      const baseData = {
+        ...item,
+        hombres: item.can ?? 1,
+        dias: item.tde ?? 1,
+        costoDia: item.puc ?? 0,
+        utilidad: item.tou ?? 0,
+        porcentaje: item.cau ?? 20,
+      };
+
+      const calculados = calcularValores(baseData);
+
       setForm({
-        id: item.id ?? item.num,   // opcional, solo referencia visual
-        num: item.num,             // 🔴 ESTA ES LA CLAVE REAL
-        area: item.tpr || "",
+        id: item.id ?? item.num,
+        num: item.num,
+        // Forzamos el área de la cotización padre
+        area: areaCotizacion || item.tpr || "", 
         personal: item.personalCodigo
           ? `${item.personalCodigo} - ${item.personal}`
           : item.cod ?? "",
         personalCodigo: item.personalCodigo || item.cod?.split(" - ")[0] || "",
         descripcion: item.des || "",
-        hombres: item.can ?? 1,
-        dias: item.tde ?? 1,
+        hombres: baseData.hombres,
+        dias: baseData.dias,
         horas: item.pro ?? 8,
-        costoDia: item.puc ?? 0,
-        utilidad: item.tou ?? 0,
-        porcentaje: item.cau ?? 20,
-        costoTotal: item.toc ?? 0,
-        cotizadoDia: item.val ?? 0,
-        cotizadoTotal: item.tot ?? 0,
-        utilidadTotal: toNumber(item.tou) * toNumber(item.can)* toNumber(item.tde),
+        costoDia: baseData.costoDia,
+        utilidad: baseData.utilidad,
+        porcentaje: baseData.porcentaje,
+        ...calculados // Esparcimos los totales (costoTotal, cotizadoTotal, etc.)
       });
     } else {
-      // ➕ MODO NUEVO: reset
-      setForm(prev => ({
-        ...prev,
+      // ➕ MODO NUEVO: Reset total del formulario
+      setForm({
+        area: areaCotizacion || "",
+        personal: "",
+        personalCodigo: "",
         descripcion: "",
         hombres: 1,
         dias: 1,
@@ -92,17 +103,14 @@ function RegistroItemManoObraModal({ open, onClose, onConfirm, item, areaCotizac
         costoDia: 0,
         utilidad: 0,
         porcentaje: 20,
-        costoTotal: 0,
-        cotizadoDia: 0,
-        cotizadoTotal: 0,
-        utilidadTotal: 0,
-        personal: "",
-        personalCodigo: "",
-        area: areaCotizacion,
-      }));
+        costoTotal: "0.00",
+        cotizadoDia: "0.00",
+        cotizadoTotal: "0.00",
+        utilidadTotal: "0.00",
+      });
     }
-  }, [open, item]);
-
+  }, [open, item, areaCotizacion]);
+  
   const calcularValores = (data, campoModificado = null) => {
     const next = { ...data };
 

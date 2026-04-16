@@ -2,7 +2,31 @@
 import React, { useState, useEffect } from "react";
 import api from "@/services/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FilePenLine, File, X, Info, LayoutDashboard, Save, LogOut, ChevronRight } from "lucide-react";import { Button } from "@/components/ui/button";
+import { 
+  Hash,            
+  FileCheck2,
+  Settings2,
+  ChevronUp,
+  SquareStar,
+  ShieldCheck,
+  FileText,
+  UserPlus,
+  Copy,
+  Trash,
+  FilePlus,
+  Send,
+  SquareArrowUp,
+  MessageSquareMore,
+  Phone,
+  ChartScatter,
+  PlusSquare,
+  BanknoteArrowDown,
+  Paperclip,
+  RefreshCw,
+  Undo2,
+  History,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import InfoTabs from "@/components/ui/InfoTabs";
 import CondicionesModal from "../Gestion/CondicionesModal";
@@ -32,13 +56,13 @@ import RegistroItemGastosServicioModal from "../Servicios/RegistroItemGastosServ
 import RegistroItemOtrosModal from "../Servicios/RegistroItemOtrosModal";
 import EstadoCotizacionModal from "../Gestion/EstadoCotizacionModal";
 import AsignarCotiModal from "../Gestion/AsignarCotiModal";
+import { crearCotizacion } from "../../api/cotizaciones";
 import { tableToExcel } from "../../utils/excel";
 import { calcularItemSegunProveedor, resolverEndpointPorCodigo } from "../Suministros/tables/tablaUtils";
-
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { crearCotizacion } from "@/api/cotizaciones";
 import { toast } from "react-toastify";
 import { fromJSON } from "postcss";
+import ActionMenu from "../../components/ui/ActionMenu";
 
 const ACCIONES_POR_MODO = {
   C: {
@@ -75,7 +99,7 @@ const ACCIONES_POR_MODO = {
   },
 };
 
-export default function AprobacionCotizacionModal({ open, onClose, cotizacion, modo, tipo, dashboard, onRefrescar }) {
+export default function AprobacionCotizacionModal({ open, onClose, cotizacion, modo, tipo, dashboard, onRefrescar, esOportunidad }) {
   const [data, setData] = useState(cotizacion || {});
   const [originalData, setOriginalData] = useState(cotizacion || {});
 
@@ -119,6 +143,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   const [openAdjuntos, setOpenAdjuntos] = useState(false);
   const [openEstadoCoti, setOpenEstadoCoti] = useState(false);
   const [openAsignar, setOpenAsignar] = useState(false);
+  const [openCodigo, setOpenCodigo] = useState(false);
   const [codigo, setCodigo] = useState(""); // si lo quieres en el estado
   // SUMINISTROS
   const [openGrupoModal, setOpenGrupoModal] = useState(false);
@@ -151,13 +176,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     // 🔹 Si tipoCodigo viene undefined (editar), lo tomamos del subgrupo
     tipoCodigo = tipoCodigo ?? subgrupo.tipoCodigo;
 
-    console.log("🚀 abrirModalRegistroPorTipo", {
-      tipoCodigo,
-      servicioId,
-      subgrupoId,
-      item,
-    });
-
     setSelectedServicioId(servicioId);
     setSelectedSubgrupoId(subgrupoId);
     setSelectedTipoCodigo(tipoCodigo);
@@ -176,6 +194,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     }
   };
   const [loadingSuministros, setLoadingSuministros] = useState(false);
+  const [campoError, setCampoError] = useState(null);
   const acciones = ACCIONES_POR_MODO[modo] || {};
   const [itemActivo, setItemActivo] = useState(null);
   const [cotizacionVista, setCotizacionVista] = useState(cotizacion?.num_reg);
@@ -183,9 +202,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   const [tabActiva, setTabActiva] = useState("datos");
   const DASHBOARD_TABS = {
     C: ["datos", "suministros", "servicios", "gestion"],
-    R: ["datos", "suministros", "servicios", "gestion"],
-    A: ["datos", "suministros", "servicios", "gestion"],
-    S: ["datos", "suministros", "servicios"],
+    O: ["datos"],
   };
   const tabsToShow = DASHBOARD_TABS[dashboard] ?? ["datos"];
 
@@ -242,13 +259,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
       setData(res.data);
 
-      console.log("🧾 DESCUENTOS RAW BACKEND:", {
-        des_a: res.data.des_a,
-        des_t: res.data.des_t,
-        des_p: res.data.des_p,
-        des_m: res.data.des_m,
-      });
-
       // 🔥 HIDRATAR DESCUENTO DESDE BACKEND
       const afectoMap = {
         T: "t",
@@ -265,14 +275,9 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
       setDescuentosForm(descuentoForm);
 
-      console.log("🧾 DESCUENTO HIDRATADO:", descuentoForm);
-
       // 🔑 Fuente de verdad
       const tc = Number(res.data.tcamb || 1);
       setTcamb(tc);
-
-      console.log("📄 DETALLE CARGADO:", res.data);
-      console.log("💱 TCAMB de cotización:", tc);
 
     } catch (err) {
       console.error("Error cargando detalles de cotización:", err);
@@ -282,14 +287,53 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     }
   };
 
+  console.log("🧭 Modal activo en dashboard:", dashboard);
+  
+  //===============//
+  // OPORTUNIDADES //
+  //===============//
+  const fetchOportunidadDetalle = async (num_reg) => {
+    if (!num_reg) return;
+
+    setLoading(true);
+    try {
+      const res = await api.get(`oportunidades/modal/${num_reg}/`); 
+      
+      // 🔍 ESTE ES EL LOG QUE NECESITAMOS VER
+      console.log("📂 [DEBUG] DATOS DE OPORTUNIDAD RECIBIDOS:", {
+          num_reg: res.data.num_reg,
+          f_recp: res.data.f_recp,
+          f_limite: res.data.f_limite,
+          estado_op: res.data.estado_op,
+          coment: res.data.coment,
+          objeto_completo: res.data
+      });
+
+      setData(res.data);
+    } catch (err) {
+      console.error("❌ Error cargando oportunidad:", err);
+      setError("No se pudo cargar el seguimiento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Cargar solo la cabecera (detalle) usando el número original
   useEffect(() => {
     if (open && cotizacion?.num_reg) {
-      fetchCotizacionDetalle(cotizacion.num_reg);
+      // Determinamos si es oportunidad basándonos en tu lógica (ej. el campo 'cotit' o un flag)
+      const esOP = cotizacion.es_oportunidad || cotizacion.cotit === 'S' || cotizacion.cotit === 'V'; 
+
+      if (esOP) {
+        fetchOportunidadDetalle(cotizacion.num_reg);
+      } else {
+        fetchCotizacionDetalle(cotizacion.num_reg);
+      }
+
       cargarMensajes();
       setCotizacionVista(cotizacion.num_reg);
-      setCotizacionEditable(null); // reset de seguridad
-      setTabActiva("datos");     // UX limpia
+      setCotizacionEditable(null);
+      setTabActiva("datos");
     }
   }, [open, cotizacion]);
 
@@ -310,8 +354,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       setGruposSuministros(grupos);
       setSuministros(rows);
 
-      console.log("Suministros mapeados a UI:", grupos);
-
     } catch (err) {
       console.error("Error cargando suministros:", err);
       setGruposSuministros({});
@@ -322,10 +364,15 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   // Agregar o Editar Grupo
   const handleAgregarGrupoSuministro = (form) => {
     setGruposSuministros(prev => {
+      // 1. DETERMINAR EL COSTO DE ENVÍO CON FALLBACK
+      // Si el modal devuelve 0, intentamos usar el envío general de la cotización (data)
+      const envioGeneral = data?.tven === "T" ? (data?.env_tot || 0) : (data?.env_par || 0);
+      const costoEnvioFinal = Number(form.costoEnvio) > 0 ? Number(form.costoEnvio) : Number(envioGeneral);
 
       // ✏️ EDITAR EXISTENTE
       if (form._key && prev[form._key]) {
         const grupoPrev = prev[form._key];
+
         return {
           ...prev,
           [form._key]: {
@@ -334,7 +381,14 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
             cantidad: Number(form.cantidad),
             totalGrupo: form.totalGrupo,
             nroLineasPdf: Number(form.nroLineasPdf),
-            costoEnvio: Number(form.costoEnvio), // <-- Agregado
+            
+            // Sincronizamos todos los campos con el valor final validado
+            costoEnvio: costoEnvioFinal, 
+            env_tot: costoEnvioFinal,
+            env_par: costoEnvioFinal,
+            cost_env: costoEnvioFinal,
+            tog: form.totalGrupo ? 1 : 0,
+
             header: {
               ...grupoPrev.header,
               can: Number(form.cantidad),
@@ -343,16 +397,14 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         };
       }
 
-      // ➕ CREAR NUEVO GRUPO (CONTADOR GLOBAL)
+      // ➕ CREAR NUEVO GRUPO
       const existentes = Object.keys(prev)
         .map(k => parseInt(k.substring(0, 2), 10))
         .filter(n => !isNaN(n));
 
       const maxContador = existentes.length > 0 ? Math.max(...existentes) : 0;
       const nuevoContador = maxContador + 1;
-
-      const tipo = form.tipo; 
-      const nuevoCog = String(nuevoContador).padStart(2, "0") + tipo;
+      const nuevoCog = String(nuevoContador).padStart(2, "0") + form.tipo;
 
       return {
         ...prev,
@@ -362,16 +414,35 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
           cantidad: Number(form.cantidad),
           totalGrupo: form.totalGrupo,
           nroLineasPdf: Number(form.nroLineasPdf),
-          costoEnvio: Number(form.costoEnvio), // <-- Agregado
           items: [],
           header: {
             can: Number(form.cantidad),
             tot: 0,
           },
+          // Aplicamos el valor final validado también al crear
+          costoEnvio: costoEnvioFinal,
+          env_tot: costoEnvioFinal,
+          env_par: costoEnvioFinal,
+          cost_env: costoEnvioFinal,
         },
       };
     });
   };
+
+  useEffect(() => {
+    if (gruposSuministros && Object.keys(gruposSuministros).length > 0) {
+      console.log("%c >>> ESTADO ACTUAL DE GRUPOS (AL CARGAR MODAL) <<<", "background: #222; color: #bada55; pading: 2px;");
+      
+      Object.values(gruposSuministros).forEach((g, index) => {
+        console.log(`GRUPO [${index}] - Título: ${g.titulo}`);
+        console.log(`   -> env_tot: ${g.env_tot}`);
+        console.log(`   -> env_par: ${g.env_par}`);
+        console.log(`   -> costoEnvio: ${g.costoEnvio}`);
+      });
+      
+      console.log("------------------------------------------------");
+    }
+  }, [gruposSuministros]);
 
   const normalizarSuministros = (rows) => {
     const grupos = {};
@@ -485,6 +556,95 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     });
   };
 
+  const calcularItemConEnvio = (item, todosLosItemsDelGrupo, costoEnvioGrupo, tipoVenta) => {
+    const tVenta = tipoVenta?.toUpperCase();
+    
+    const cantidad = Number(item.can || 0);
+    const costoPrecioUnitario = Number(item.puc || 0);
+    const costoTotalLinea = Number((costoPrecioUnitario * cantidad).toFixed(2)); // TOC
+    const porcentajeUtil = Number(item.cau || 0);
+
+    const listaItems = Array.isArray(todosLosItemsDelGrupo) 
+      ? todosLosItemsDelGrupo 
+      : Object.values(todosLosItemsDelGrupo || {});
+
+    const sumaVentaGrupo = listaItems.reduce((acc, it) => acc + Number(it.toc || 0), 0);
+
+    let costoEnvioUnitario = 0;
+    let porcentajeEnvio = 0;
+
+    // ==========================================
+    // CASO 1: VENTA TOTAL (T) -> Prorrateo
+    // ==========================================
+    if (tVenta === "T") {
+      const ratioEnvio = sumaVentaGrupo > 0 ? (costoTotalLinea / sumaVentaGrupo) : 0;
+      
+      // Aquí SÍ calculamos y guardamos por_env
+      porcentajeEnvio = sumaVentaGrupo > 0 
+        ? Number(((costoPrecioUnitario / sumaVentaGrupo) * 100).toFixed(2)) 
+        : 0;
+      
+      const envioTotalParaEsteItem = costoEnvioGrupo * ratioEnvio;
+      costoEnvioUnitario = cantidad > 0 ? envioTotalParaEsteItem / cantidad : 0;
+    } 
+    
+    // ==========================================
+    // CASO 2: VENTA PARCIAL (P) -> Envío Directo
+    // ==========================================
+    else if (tVenta === "P") {
+      costoEnvioUnitario = cantidad > 0 ? costoEnvioGrupo / cantidad : 0;
+      
+      // 🚩 MEJORA: En modo P, forzamos por_env a 0 para que no se guarde ni procese
+      porcentajeEnvio = 0; 
+
+      console.log(` > Modo Parcial: Envio U. ${costoEnvioUnitario.toFixed(4)} | por_env anulado.`);
+    }
+
+    // ==========================================
+    // PROCESO DE RETORNO (T y P)
+    // ==========================================
+    if (tVenta === "T" || tVenta === "P") {
+      const costoConEnvio = costoPrecioUnitario + costoEnvioUnitario;
+      const utilidadUnitaria = (costoConEnvio * porcentajeUtil) / 100;
+      const ventaPrecioUnitario = costoConEnvio + utilidadUnitaria;
+
+      return {
+        ...item,
+        can: cantidad,
+        puc: costoPrecioUnitario,
+        toc: costoTotalLinea,
+        cau: porcentajeUtil,
+        tou: Number(utilidadUnitaria.toFixed(4)),
+        val: Number(ventaPrecioUnitario.toFixed(2)),
+        tot: Number((ventaPrecioUnitario * cantidad).toFixed(2)),
+        cost_env: Number(costoEnvioUnitario.toFixed(4)),
+        por_env: porcentajeEnvio, // Será > 0 solo si es "T"
+        cost_c_env: Number(costoConEnvio.toFixed(4)),
+        utilidadTotal: Number(((ventaPrecioUnitario - costoConEnvio) * cantidad).toFixed(2))
+      };
+    }
+
+    // Caso 3: Estándar (Sin envío)
+    else {
+      const utilidadUnitaria = (costoPrecioUnitario * porcentajeUtil) / 100;
+      const ventaPrecioUnitario = costoPrecioUnitario + utilidadUnitaria;
+      return {
+        ...item,
+        can: cantidad,
+        puc: costoPrecioUnitario,
+        toc: costoTotalLinea,
+        cau: porcentajeUtil,
+        tou: Number(utilidadUnitaria.toFixed(4)),
+        val: Number(ventaPrecioUnitario.toFixed(2)),
+        tot: Number((ventaPrecioUnitario * cantidad).toFixed(2)),
+        cost_env: 0,
+        por_env: 0,
+        cost_c_env: costoPrecioUnitario,
+        utilidadTotal: Number((utilidadUnitaria * cantidad).toFixed(2))
+      };
+    }
+  };
+
   const mapSuministrosBackendToState = (rows = []) => {
     const grupos = {};
 
@@ -494,11 +654,17 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       if (!grupos[grupoId]) {
         grupos[grupoId] = {
           id: grupoId,
+          cog: grupoId, // Asegúrate de tener 'cog' disponible
           tipo: "SUMINISTROS",
           titulo: row.nog || "",
           cantidad: 0,
           totalGrupo: 0,
           nroLineasPdf: 0,
+          // 🚀 CAMPOS NUEVOS PARA EL MODAL:
+          env_tot: 0,
+          env_par: 0,
+          cost_env: 0,
+          tog: 0,
           header: {
             can: 0,
             tot: 0,
@@ -507,17 +673,24 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         };
       }
 
-      // 🟡 CABECERA DEL GRUPO
+      // 🟡 CABECERA DEL GRUPO (nig === 0)
       if (row.nig === 0) {
         grupos[grupoId].titulo = row.nog;
         grupos[grupoId].cantidad = Number(row.can || 0);
         grupos[grupoId].header.can = Number(row.can || 0);
         grupos[grupoId].header.tot = Number(row.tot || 0);
         grupos[grupoId].totalGrupo = Number(row.tot || 0);
+        
+        // 🚩 AQUÍ ESTABA EL ERROR: Mapeamos los valores de envío de la DB al estado
+        grupos[grupoId].env_tot = Number(row.env_tot || 0);
+        grupos[grupoId].env_par = Number(row.env_par || 0);
+        grupos[grupoId].cost_env = Number(row.cost_env || 0);
+        grupos[grupoId].tog = Number(row.tog || 0); 
+        
         return;
       }
 
-      // 🟢 ITEM REAL
+      // 🟢 ITEM REAL (nig > 0)
       const item = {
         id: `I-${row.num}`,
         num: row.num,
@@ -532,6 +705,10 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         toc: Number(row.toc || 0),
         cau: Number(row.cau || 0),
         tou: Number(row.tou || 0),
+        // También guardamos el envío por item por si acaso
+        env_tot: Number(row.env_tot || 0),
+        env_par: Number(row.env_par || 0),
+        cost_env: Number(row.cost_env || 0),
         mov: row.mov,
         tpr: row.tpr,
         ent: row.ent, 
@@ -544,7 +721,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       // acumulados
       grupos[grupoId].header.can += item.can;
       grupos[grupoId].header.tot += item.tot;
-      grupos[grupoId].totalGrupo += item.tot;
+      // Nota: Aquí decides si el totalGrupo es la suma de items o el valor de cabecera
     });
 
     return grupos;
@@ -999,7 +1176,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
   useEffect(() => {
     const total = recalcularTotalesSuministros(gruposSuministros);
-    console.log("🔁 Recalculando total suministros:", total);
 
     setTotalGeneral(total);
   }, [gruposSuministros]);
@@ -1016,7 +1192,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       const lista = Array.isArray(res.data) ? res.data : [];
 
       setServicios(lista);
-      console.log("🧠 Servicios cargados:", lista);
 
     } catch (err) {
       console.error("Error cargando servicios:", err);
@@ -1313,6 +1488,49 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     },
   });
 
+  // Actualizar areas
+  useEffect(() => {
+    const areaActual = data?.area_codigo; // El código que viene de la cotización
+    if (!areaActual) return;
+
+    setGruposServicios(prev => {
+      let huboCambio = false;
+      const nuevoState = {};
+
+      // Recorremos cada Servicio
+      Object.keys(prev).forEach(servicioId => {
+        const servicio = prev[servicioId];
+        
+        const nuevosSubgrupos = (servicio.subgrupos || []).map(sg => {
+          // Recorremos los items de cada subgrupo
+          const nuevosItems = (sg.items || []).map(item => {
+            // 🔴 Si el item tiene un área (tpr) diferente a la actual, lo marcamos para cambio
+            if (item.tpr !== areaActual) {
+              huboCambio = true;
+              return { ...item, tpr: areaActual };
+            }
+            return item;
+          });
+
+          return { ...sg, items: nuevosItems };
+        });
+
+        nuevoState[servicioId] = { ...servicio, subgrupos: nuevosSubgrupos };
+      });
+
+      // Solo actualizamos el estado y disparamos el guardado si realmente hubo cambios
+      if (huboCambio) {
+        // 🔥 Opcional: Si quieres que se guarde en la DB automáticamente al cambiar el área:
+        const payload = mapServiciosStateToPayload(nuevoState);
+        serviciosMutation.mutate(payload);
+        
+        return nuevoState;
+      }
+
+      return prev;
+    });
+  }, [data?.area_codigo]); // Se dispara cuando cambia el código de área en la cabecera
+
   // =========
   // GESTION
   // =========
@@ -1403,26 +1621,40 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   });
 
   const generarCodigo = useMutation({
-    mutationFn: () =>
-      api.post(`/cotizaciones/generar_codigo/${numReg}/`),
+    mutationFn: () => api.post(`/cotizaciones/generar_codigo/${numReg}/`),
 
     onSuccess: (res) => {
       const nuevoCodigo = res.data.codigo;
 
-      // 🔥 actualizar estado local
+      // 1. 🔥 ACTUALIZACIÓN LOCAL (Para el Modal e InfoTabs)
+      // Inyectamos el código directamente en el objeto 'data'
+      setData(prev => ({
+        ...prev,
+        numero: nuevoCodigo 
+      }));
+
+      // Actualizamos el estado 'codigo' por compatibilidad
       setCodigo(nuevoCodigo);
 
       toast.success("Código guardado correctamente");
 
-      // 🔄 refrescar dashboards / tablas
-      queryClient.invalidateQueries({ queryKey: ["cotizaciones"] });
-      queryClient.invalidateQueries({ queryKey: ["revision-cotizaciones"] });
-      queryClient.invalidateQueries({ queryKey: ["aprobacion-cotizaciones"] });
-      queryClient.invalidateQueries({ queryKey: ["seguimiento-cotizaciones"] });
+      // 2. 🔄 ACTUALIZACIÓN GLOBAL (Para la Tabla del Dashboard)
+      // Usamos la llave exacta que definiste en el useQuery del Dashboard.
+      // 'exact: false' es clave para que invalide la query aunque tenga filtros.
+      queryClient.invalidateQueries({ 
+        queryKey: ["aprobacion-cotizaciones"], 
+        exact: false 
+      });
 
-      // 🔍 refrescar detalle
-      queryClient.invalidateQueries({
-        queryKey: ["cotizacion-detalle", numReg],
+      // 3. 🔍 REFRESCAR OTRAS VISTAS (Opcional pero recomendado)
+      queryClient.invalidateQueries({ 
+        queryKey: ["cotizacion-detalle", numReg] 
+      });
+      
+      // Si usas "oportunidades" en la misma vista, también la limpiamos
+      queryClient.invalidateQueries({ 
+        queryKey: ["oportunidades"], 
+        exact: false 
       });
     },
 
@@ -1494,7 +1726,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
   // 🔹 Recibe datos del submodal
   const handleGuardarDescuento = (payload) => {
-    console.log("📥 DESCUENTO RECIBIDO EN MODAL PADRE:", payload);
     setDescuentosForm(payload); // actualiza estado local
     guardarDescuentoMutation.mutate(payload); // guarda directamente en backend
   };
@@ -1573,7 +1804,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
       // Mensaje de usuario
       toast.success(`Versión ${cotin} creada`);
-      console.log("🆕 Nueva versión creada:", num_reg);
 
       // Cerramos modal
       setOpenNuevaVersion(false);
@@ -1598,7 +1828,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   });
 
   useEffect(() => {
-    console.log("🧭 Tab:", tabActiva, "Editable:", cotizacionEditable);
 
     if (tabActiva === "datos" && cotizacionEditable) {
       console.log("➡️ Pasando a vista:", cotizacionEditable);
@@ -1610,9 +1839,57 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
   useEffect(() => {
     if (!cotizacionVista) return;
 
-    console.log("🔄 Cargando DETALLE para:", cotizacionVista);
+    console.log("🔄 Iniciando carga integral para:", cotizacionVista);
 
-    fetchCotizacionDetalle(cotizacionVista);
+    const cargarDatosCompletos = async () => {
+      setLoading(true);
+      try {
+        // Lanzamos ambas peticiones en paralelo
+        const [resCotizacion, resOportunidad] = await Promise.all([
+          api.get(`cotizaciones/modal/${cotizacionVista}/`),
+          api.get(`oportunidades/modal/${cotizacionVista}/`).catch(err => {
+            console.warn("⚠️ No se encontró registro de oportunidad para este ID, usando datos vacíos.");
+            return { data: {} }; // Si falla la op, devolvemos objeto vacío para no romper el flujo
+          })
+        ]);
+
+        // --- FUSIÓN DE DATA ---
+        // Combinamos ambos mundos en un solo objeto para el estado 'data'
+        const dataHibrida = {
+          ...resCotizacion.data,
+          ...resOportunidad.data,
+          // Limpiamos fechas de oportunidad para que los inputs HTML5 las reconozcan
+          f_recp: resOportunidad.data?.f_recp?.split('T')[0] || "",
+          f_limite: resOportunidad.data?.f_limite?.split('T')[0] || "",
+          cotif: resCotizacion.data?.cotif?.split('T')[0] || ""
+        };
+
+        console.log("📦 [DEBUG] DATA HIBRIDA FINAL:", dataHibrida);
+        setData(dataHibrida);
+
+        // --- LOGICA DE COTIZACIÓN (Hidratación) ---
+        const afectoMap = { T: "t", S: "su", M: "ser" };
+        setDescuentosForm({
+          aplicar: Number(resCotizacion.data.des_a) === 1,
+          afecto: afectoMap[resCotizacion.data.des_t] || "",
+          porcentaje: resCotizacion.data.des_p || "",
+          importe: resCotizacion.data.des_m || "",
+        });
+
+        setTcamb(Number(resCotizacion.data.tcamb || 1));
+
+      } catch (err) {
+        console.error("❌ Error en la carga dual:", err);
+        setError("Error al cargar la información del registro.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Ejecutamos la carga principal
+    cargarDatosCompletos();
+
+    // Cargas secundarias (tablas/mensajes)
     fetchSuministros(cotizacionVista);
     fetchServicios(cotizacionVista);
     cargarMensajes();
@@ -1706,25 +1983,11 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
     const reg = data?.num_reg || cotizacion?.num_reg;
 
-    console.log("USANDO num_reg PARA SUMINISTROS Y SERVICIOS:", reg);
-
     if (reg) {
       fetchSuministros(reg);
       fetchServicios(reg);
     }
   }, [open, data?.num_reg, cotizacion?.num_reg]);
-
-  // Debug general
-  useEffect(() => {
-    console.log(
-      "DATA FINAL DEL MODAL:",
-      JSON.stringify(
-        { detalle: data, suministros, servicios },
-        null,
-        2
-      )
-    );
-  }, [data, suministros, servicios]);
 
   // ==============================
   // CONTROL POR ESTADO ENVIO
@@ -1752,38 +2015,45 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
     // 🔹 Mapear suministros para incluir subtotal en la cabecera
     const suministrosPayload = Object.fromEntries(
       Object.entries(gruposSuministros).map(([cog, grupo]) => {
-        
-        // Procesamos cada ítem del grupo para asegurar que viajen todos los campos
-        const itemsProcesados = (grupo.items || []).map(item => ({
-          ...item,
-          // Forzamos que los campos de envío y cálculos viajen como números
-          can: Number(item.can || 0),
-          puc: Number(item.puc || 0),
-          toc: Number(item.toc || 0),
-          cau: Number(item.cau || 0),
-          tou: Number(item.tou || 0),
-          val: Number(item.val || 0),
-          tot: Number(item.tot || 0),
-          // 🚀 CAMPOS DE ENVÍO CRÍTICOS
-          cost_env: Number(item.cost_env || 0), 
-          por_env: Number(item.por_env || 0),
-          cost_c_env: Number(item.cost_c_env || 0),
-        }));
-  
-        // 🔹 Suma de totales de los items ya procesados
+        const valorRespaldo = data?.tven === "T" ? (grupo.env_tot || 0) : (grupo.env_par || 0);
+        const costoEnvioGrupo = Number(grupo.costoEnvio ?? valorRespaldo); 
+
+        const tipoVentaGlobal = data?.tven; 
+        const itemsDelGrupo = grupo.items || [];
+
+        console.log(`DEBUG GUARDADO - Grupo: ${grupo.titulo}, Costo final usado: ${costoEnvioGrupo}`);
+
+        // 1️⃣ Recalculamos cada ítem usando la lógica de prorrateo por TOC
+        const itemsProcesados = itemsDelGrupo.map((item, idx) => {
+          const itemCalculado = calcularItemConEnvio(
+            item, 
+            itemsDelGrupo, 
+            costoEnvioGrupo, 
+            tipoVentaGlobal
+          );
+
+
+          return itemCalculado;
+        });
+
+        // 2️⃣ Sumatoria real de los items recalculados para el total del grupo
         const subtotalItems = itemsProcesados.reduce(
-          (acc, item) => acc + item.tot,
+          (acc, item) => acc + (Number(item.tot) || 0),
           0
         );
-  
+
         return [
           cog,
           {
             ...grupo,
-            costoEnvio: Number(grupo.costoEnvio || 0),
+            costoEnvio: costoEnvioGrupo,
             tipoEnvio: grupo.tipoEnvio || "TOTAL",
-            total: +subtotalItems.toFixed(2),
-            // 👇 Ahora los items viajan con el mapeo correcto para Django
+            total: Number(subtotalItems.toFixed(2)), // Total raíz
+            // 🚩 CLAVE: Sincronizamos el header con el nuevo total para evitar el 50288.34
+            header: {
+              ...grupo.header,
+              tot: Number(subtotalItems.toFixed(2)) 
+            },
             items: itemsProcesados, 
           },
         ];
@@ -1798,9 +2068,14 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
         (grupo.subgrupos || []).forEach(sub => {
           (sub.items || []).forEach(it => {
+            // DETERMINAR EL ÁREA (tpr)
+            // Si el ítem tiene 'area', lo usamos. Si no, usamos el del subgrupo.
+            const areaParaItem = it.area || sub.tipoCodigo;
+
             const itemProcesado = {
               ...it,
-              tipoCodigo: sub.tipoCodigo, // 🔹 Asignamos el tipo del subgrupo
+              tpr: areaParaItem, // 🚩 Aquí se asigna el código de área (8, 2, 3, etc.)
+              tipoCodigo: sub.tipoCodigo, 
               can: Number(it.can || 0),
               puc: Number(it.puc || 0),
               toc: Number(it.toc || 0),
@@ -1809,6 +2084,10 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
               val: Number(it.val || 0),
               tot: Number(it.tot || 0),
             };
+
+            // DEBUG: Para ver qué área se le está asignando a cada ítem antes de enviar
+            console.log(`👷 MO Item: ${it.des?.substring(0, 20)}... | Area(tpr): ${areaParaItem}`);
+
             items.push(itemProcesado);
             totalGrupo += itemProcesado.tot;
           });
@@ -1820,29 +2099,99 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
           cog,
           {
             ...grupo,
-            cantidad: Number(grupo.cantidad ?? 1), // 🔴 CLAVE
-            items,                        // items ya procesados
-            total: +totalGrupo.toFixed(2) // total listo para nig=0 y backend
+            cantidad: Number(grupo.cantidad ?? 1),
+            items,
+            total: +totalGrupo.toFixed(2)
           },
         ];
       })
     );
 
-    console.log("💾 TOTAL A GUARDAR:", {
-      totalSinDescuento: totalesLocales.total,
-      descuento: descuentoAplicado,
-      totalFinal,
-    });
+    // ── CONFIGURACIÓN DEL PAYLOAD DE OPORTUNIDAD (ESPEJO TOTAL) ──
+    const oportunidadPayload = {
+      // Identificación y Seguimiento
+      num_reg_cot: null,
+      cotin: data.numero || data.cotin || "", 
+      cotif: data.fecha || data.cotif,
+      refer: data.referencia || data.refer || "",
+      f_recp: data.f_recp || data.fecha, 
+      f_limite: data.f_limite || null,
+      f_emi: data.f_emi || null,
+      estado_op: Number(data.estado_op ?? 0), // 0: Pendiente por defecto
+      coment: data.coment || "",
+      
+      // Clasificación Comercial
+      prob: data.prob || "0",
+      cotit: data.cotit || "", 
+      area: data.area_codigo || data.area || "",
+      tven: data.tven || "1",
+      estad: data.estado_codigo || "2", // Estado de coti (2: Pendiente)
+      envio: Number(data.estado_op) === 3 ? 2 : 0, // 🚩 LA LÓGICA CLAVE
+
+      // Cliente y Contacto
+      empre: data.cliente_codigo || data.empre || "",
+      nombr: data.nombr || "",
+      cargr: data.cargr || "",
+      codir: data.codir || "",
+      teler: data.teler || "",
+      movir: data.movir || "",
+      mailr: data.mailr || "",
+
+      // Pago / Moneda / Totales (Pestaña DATOS)
+      tot_c: Number(data.tot_c || 0),
+      fpago: data.fpago || "",
+      lugar: data.lugar || "",
+      tmone: data.tmone || "D", // Dólares por defecto
+      tcamb: Number(data.tcamb || 0),
+      igv: data.igv || "S",
+
+      // Tiempos y Validez
+      plazo: Number(data.plazo || 0),
+      tot_d: data.tot_d || "D",
+      por_c: Number(data.por_c || 0),
+      tot_s: data.tot_s || "D",
+      valid: Number(data.valid || 0),
+      acu_s: data.acu_s || "D",
+
+      // Responsables
+      codic: data.codic || "",
+      nombc: data.nombc || "",
+      codit: data.codit || "",
+      nombt: data.nombt || "",
+
+      // Descuentos y Metadatos
+      des_a: data.des_a || "N",
+      des_t: data.des_t || "N",
+      des_m: Number(data.des_m || 0),
+      des_p: Number(data.des_p || 0),
+      acu_e: condicionesHtml || "", // El HTML de términos y condiciones
+      regus: data.regus || "",
+      anno: data.anno || new Date().getFullYear().toString(),
+      mes: data.mes || (new Date().getMonth() + 1).toString().padStart(2, '0'),
+      anno_a: data.anno_a || "2026"
+    };
+  
+    // DEBUG para que veas qué se va a la tabla vc_mov_oportunidades
+    //console.log("🎯 OPORTUNIDAD PAYLOAD:", oportunidadPayload);
 
     const payload = {
       ...data,
+      origen: dashboard,
       detalle: {
         ...data.detalle,
-        // ❌ NO enviar tot_c calculado
       },
       acu_e: condicionesHtml,
       suministros: suministrosPayload,
       servicios: serviciosPayload,
+      // OPORTUNIDAD
+      f_emi: data.f_emi || null,
+      f_limite: data.f_limite || null,
+      por_c: Number(data.por_c ?? 0),
+      num_reg_cot: data.num_reg_cot
+        ? Number(data.num_reg_cot)
+        : null,
+      oportunidad: oportunidadPayload,
+      
       descuento: {
         aplicar: descuentosForm.aplicar,
         aplicaA:
@@ -1856,15 +2205,10 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       },
     };
 
-    console.log("📝 PAYLOAD SUMINISTROS ANTES DE GUARDAR", suministrosPayload);
-
-    console.log("🚀 PAYLOAD FINAL ENVIADO:", payload.detalle.tot_c);
-
-    // 🔍 DEBUG TOTAL: Verificamos qué sale del Navegador
-    console.log("-----------------------------------------");
-    console.log("🚀 PAYLOAD FINAL QUE SALE HACIA DJANGO:");
-    console.log(JSON.stringify(payload.suministros, null, 2)); // Lo vemos bonito y estructurado
-    console.log("-----------------------------------------");
+    console.log("🎯 OPORTUNIDAD PAYLOAD:", oportunidadPayload);
+    console.log("🎯 PAYLOAD FINAL:", payload);
+    console.log("📦 PAYLOAD PARA GUARDAR:", payload);
+    console.log("📦 Guardando desde dashboard:", dashboard);
 
     crearMutation.mutate(payload);
   };
@@ -1907,6 +2251,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
       el.focus?.();
     }
   };
+
 
   // =============================
   // Función para cerrar todo
@@ -2171,28 +2516,24 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
         
         {/* ENCABEZADO EJECUTIVO ERP */}
         <div className="relative bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
-
           {/* IZQUIERDA */}
           <div className="flex items-center gap-4">
-
             {/* Avatar inteligente cliente */}
             <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-teal-600 flex items-center justify-center text-white font-black text-sm lg:text-base shadow-lg shadow-teal-100">
               {data?.cliente_nombre?.charAt(0) || "C"}
             </div>
-
             {/* CONTEXTO DOCUMENTO */}
             <div>
-
               {/* Breadcrumb ERP */}
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                Gestión Comercial / Cotizaciones
+                Gestión Comercial / {esOportunidad ? "Oportunidades" : "Cotizaciones"}
               </p>
 
               {/* Número documento */}
               <div className="flex items-center gap-2">
 
                 <h2 className="text-sm lg:text-xl font-black tracking-tight text-slate-800 uppercase leading-none">
-                  Cotización {data?.numero || ""}
+                  {esOportunidad ? "Oportunidad" : "Cotización"} {data?.numero || ""}
                 </h2>
 
                 {/* Registro interno */}
@@ -2217,29 +2558,23 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
             </div>
           </div>
 
-
           {/* DERECHA → PANEL EJECUTIVO */}
           <div className="flex gap-4 lg:gap-8 items-center">
-
             {/* Área / Tipo */}
             <div className="hidden sm:block text-right border-r border-slate-100 pr-4">
               <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
                 Área / Tipo
               </p>
-
               <p className="text-[10px] lg:text-xs font-black text-teal-600 uppercase mt-1">
                 {data?.area_nombre || "General"} • {data?.tipo_nombre || "Venta"}
               </p>
             </div>
 
-
             {/* Estado pipeline */}
             <div className="hidden md:block text-right">
-
               <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
                 Estado
               </p>
-
               <span
                 className={`mt-1 inline-block px-2 py-0.5 rounded-md text-[10px] font-bold
                 ${
@@ -2255,10 +2590,8 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
             </div>
 
-
             {/* Probabilidad */}
             <div className="hidden lg:block text-right">
-
               <p className="text-[8px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
                 Probabilidad
               </p>
@@ -2283,12 +2616,6 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
 
             </div>
 
-
-            {/* SLOT BOTONES HEADER */}
-            {/* ejemplo:
-            <Button size="sm">Guardar</Button>
-            */}
-
           </div>
 
         </div>
@@ -2306,6 +2633,7 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
                 setData={setData}
                 suministros={Array.isArray(suministros) ? suministros : []} // siempre un array
                 servicios={Array.isArray(servicios) ? servicios : []}
+                esOportunidad={esOportunidad}
                 modo={modo}
                 esNueva={esNueva}
                 esVer={esVer}
@@ -2456,13 +2784,19 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
               item={itemActivo}
               num_reg={numReg}
               tipoVenta={data?.tven}
-              costoEnvioGrupo={gruposSuministros?.[grupoActivo]?.costoEnvio || 0}
+              costoEnvioGrupo={
+                data?.tven === "T" 
+                  ? (gruposSuministros?.[grupoActivo]?.env_tot || 0) 
+                  : (gruposSuministros?.[grupoActivo]?.env_par || 0)
+              }
               sumaVentaGrupo={
                 (gruposSuministros?.[grupoActivo]?.items || []).reduce(
                   (acc, item) => acc + Number(item.toc || 0),
                   0
                 )
               }
+              env_tot={data?.env_tot || 0}
+              env_par={data?.env_par || 0}
             />
 
             <RegistroItemBuscadorModal
@@ -2545,14 +2879,15 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
                 condicionesGenerales.mutate(nuevoTexto);
                 setOpenCondiciones(false);
               }}
+              tipoVenta={data?.tven}
             />
             
             <GenerarCodigoModal
               open={openGenerarCodigo}
               onClose={() => setOpenGenerarCodigo(false)}
               numReg={data?.num_reg || cotizacion?.num_reg}
-              codigoExistente={codigo}   // estado del padre
-              onGuardado={() => generarCodigo.mutate()} // se llama desde el submodal
+              codigoExistente={data?.numero}
+              onGuardado={() => generarCodigo.mutateAsync()}
             />
 
             <AsignarCotiModal
@@ -2658,40 +2993,107 @@ export default function AprobacionCotizacionModal({ open, onClose, cotizacion, m
             {/* ACCIONES */}
             <div className="sticky bottom-0 bg-slate-50/80 backdrop-blur-sm border-t border-slate-200 px-6 py-2 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
               
-              {/* LADO IZQUIERDO: GESTIÓN DE LA COTIZACIÓN */}
+              {/* LADO IZQUIERDA: GESTIÓN DE LA COTIZACIÓN */}
               <div className="flex items-center gap-2">
-                {/* Contenedor sutil para botones de estado/seguimiento */}
-                <div className="flex gap-1 bg-white/50 p-1 rounded-xl border border-slate-200/60 shadow-sm">
-                  {acciones.estado && (
-                    <Button
-                      variant="ghost"
-                      className="text-[10px] font-black uppercase tracking-tight text-sky-700 hover:bg-sky-100 h-8 px-4 rounded-lg transition-all"
-                      onClick={setOpenEstadoCoti}
-                    >
-                      Estado
-                    </Button>
-                  )}
+                {/* 1. CONFIGURACIÓN: Personalización y Salida */}
+                <ActionMenu
+                  title="Herramientas Generales"
+                  align="start"
+                  customTrigger={
+                    <button className="flex items-center gap-2 h-9 px-4 bg-white hover:bg-slate-50 text-[10px] font-black uppercase tracking-tight text-slate-600 rounded-xl border border-slate-200 shadow-sm transition-all group">
+                      <Settings2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-600" />
+                      Herramientas
+                    </button>
+                  }
+                >
+                  <div className="p-1.5 space-y-0.5 w-64">
+                    <button onClick={() => handleAbrirCotizacionPDF(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <FileText className="w-3.5 h-3.5 text-cyan-600" /> Generar Archivo PDF
+                    </button>
+                    <div className="h-[1px] bg-slate-100 my-1" />
+                    <button onClick={() => setOpenCondiciones(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" /> Condiciones Generales
+                    </button>
+                    <button onClick={() => setOpenDescuentos(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <BanknoteArrowDown className="w-3.5 h-3.5 text-cyan-600" /> Descuentos
+                    </button>
+                    <button onClick={() => setOpenGenerarCodigo(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <Hash className="w-3.5 h-3.5 text-cyan-600" /> Generar Código
+                    </button>
+                    <button onClick={() => setOpenAsignar(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <UserPlus className="w-3.5 h-3.5 text-cyan-600" /> Asignar a otro Usuario
+                    </button>
+                  </div>
+                </ActionMenu>
 
-                  {acciones.seguimiento && (
-                    <Button
-                      variant="ghost"
-                      className="text-[10px] font-black uppercase tracking-tight text-purple-700 hover:bg-purple-100 h-8 px-4 rounded-lg transition-all"
-                      onClick={setOpenSeg}
-                    >
+                {/* 2. FLUJO Y ESTADOS: Acciones que mueven la cotización */}
+                <ActionMenu
+                  title="Estado y Versiones"
+                  align="start"
+                  customTrigger={
+                    <button className="flex items-center gap-2 h-9 px-4 bg-white hover:bg-slate-50 text-[10px] font-black uppercase tracking-tight text-slate-600 rounded-xl border border-slate-200 shadow-sm transition-all group">
+                      <RefreshCw className="w-3.5 h-3.5 text-indigo-500 group-hover:rotate-180 transition-transform duration-500" />
+                      Flujo
+                    </button>
+                  }
+                >
+                  <div className="p-1.5 space-y-0.5 w-60">
+                    <button onClick={() => setOpenEnviarCoti(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-teal-50 rounded-lg transition-all">
+                      <Send className="w-3.5 h-3.5 text-cyan-600" /> Enviar al Cliente
+                    </button>
+                    <button onClick={() => setOpenEnviarAprobacion(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-teal-50 rounded-lg transition-all">
+                      <Send className="w-3.5 h-3.5 text-cyan-600" /> Enviar para Aprobación
+                    </button>
+                    <button onClick={() => setOpenRetornar(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-teal-50 rounded-lg transition-all">
+                      <Undo2 className="w-3.5 h-3.5 text-cyan-600" /> Retornar para Corrección
+                    </button>
+                    
+                    <div className="h-[1px] bg-slate-100 my-1" /> {/* SEPARADOR */}
+                    
+                    <button onClick={() => setOpenNuevaVersion(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-teal-50 rounded-lg transition-all">
+                      <FilePlus className="w-3.5 h-3.5 text-cyan-600" /> Generar Nueva Versión
+                    </button>
+                    <button onClick={() => setOpenCopia(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-teal-50 rounded-lg transition-all">
+                      <Copy className="w-3.5 h-3.5 text-cyan-600" /> Generar Copia
+                    </button>
+                    
+                    <div className="h-[1px] bg-slate-100 my-1" />
+                    
+                    <button onClick={() => setOpenEliminar(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-600 hover:bg-teal-50 rounded-lg transition-all">
+                      <Trash className="w-3.5 h-3.5 text-cyan-600" /> Eliminar
+                    </button>
+                  </div>
+                </ActionMenu>
+
+                {/* 3. SEGUIMIENTO: Herramientas de análisis y contacto */}
+                <ActionMenu
+                  title="Seguimiento Comercial"
+                  align="start"
+                  customTrigger={
+                    <button className="flex items-center gap-2 h-9 px-4 bg-white hover:bg-slate-50 text-[10px] font-black uppercase tracking-tight text-slate-600 rounded-xl border border-slate-200 shadow-sm transition-all group">
+                      <History className="w-3.5 h-3.5 text-cyan-500" />
                       Seguimiento
-                    </Button>
-                  )}
-
-                  {acciones.probabilidad && (
-                    <Button
-                      variant="ghost"
-                      className="text-[10px] font-black uppercase tracking-tight text-teal-700 hover:bg-teal-100 h-8 px-4 rounded-lg transition-all"
-                      onClick={setOpenProbabilidad}
-                    >
-                      Probabilidad
-                    </Button>
-                  )}
-                </div>
+                    </button>
+                  }
+                >
+                  <div className="p-1.5 space-y-0.5 w-56">
+                    <button onClick={() => setOpenSeg(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <Phone className="w-3.5 h-3.5 text-cyan-600" /> Bitácora de Seguimiento
+                    </button>
+                    <button onClick={() => setOpenMensajes(true)} className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <div className="flex items-center gap-2">
+                        <MessageSquareMore className="w-3.5 h-3.5 text-cyan-500" /> Mensajes
+                      </div>
+                      <span className="bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded text-[9px]">{mensajes.length}</span>
+                    </button>
+                    <button onClick={() => setOpenProbabilidad(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <ChartScatter className="w-3.5 h-3.5 text-cyan-600" /> Probabilidad
+                    </button>
+                    <button onClick={() => setOpenAdjuntos(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase text-slate-700 hover:bg-cyan-50 rounded-lg transition-all">
+                      <Paperclip className="w-3.5 h-3.5 text-cyan-500" /> Archivos Adjuntos
+                    </button>
+                  </div>
+                </ActionMenu>
               </div>
 
               {/* LADO DERECHO: ACCIONES PRINCIPALES */}

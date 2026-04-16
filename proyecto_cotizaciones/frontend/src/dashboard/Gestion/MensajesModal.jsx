@@ -51,8 +51,6 @@ export default function MensajesModal({ open, onClose, num_reg, onActualizarData
         headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log("Mensajes cargados:", res.data); // 🔍 inspecciona los datos
-
         // Mapear los datos para usar en el modal
         const mapped = res.data.map((m) => ({
         id: m.dat + m.cod, // clave única temporal

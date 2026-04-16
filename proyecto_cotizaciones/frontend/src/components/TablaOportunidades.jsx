@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Loader, Eye, Search, ListFilter, SlidersHorizontal, MoreHorizontal, Target, X, Calendar, TrendingUp } from "lucide-react";
+import { Loader, Eye, Search, ListFilter, SlidersHorizontal, MoreHorizontal, Target, X, EllipsisVertical, RefreshCw } from "lucide-react";
+import ActionMenu from "./ui/ActionMenu";
 import { JiraPopover } from "@/components/ui/popover";
 import Table from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -128,11 +129,11 @@ export default function TablaOportunidades({
             /* CÓDIGO - Identificador principal */
             <div className="flex justify-center">
               <span className={`text-[11px] font-bold px-2 py-1 rounded-md border tabular-nums ${
-                o.codig 
+                o.numero 
                   ? 'text-teal-700 bg-teal-50 border-teal-100' 
                   : 'text-slate-400 bg-slate-50 border-slate-200 italic'
               }`}>
-                {o.codig || "SIN CÓDIGO"}
+                {o.numero || "SIN CÓDIGO"}
               </span>
             </div>,
 
@@ -154,12 +155,12 @@ export default function TablaOportunidades({
               </div>
             </div>,
 
-            /* DESCRIPCIÓN (descr) */
+            /* DESCRIPCIÓN (referencia) */
             <span 
               className="text-xs text-slate-600 font-medium text-left line-clamp-2 max-w-[300px] leading-snug block" 
-              title={o.descr}
+              title={o.referencia}
             >
-              {o.descr || "Sin descripción"}
+              {o.referencia || "Sin descripción"}
             </span>,
 
             /* ÁREA (area_nombre - propiedad calculada) */
@@ -169,26 +170,31 @@ export default function TablaOportunidades({
               </span>
             </div>,
 
-            /* RESPONSABLE (respo) */
+            /* RESPONSABLE (nombc) */
             <span className="text-[11px] font-semibold text-slate-700 text-center block">
-              {o.respo || "No asignado"}
+              {o.nombc || "No asignado"}
             </span>,
 
             /* COMENTARIOS (comen) */
             <span className="text-[10px] text-slate-400 italic text-left truncate max-w-[150px] block">
-              {o.comen || ""}
+              {o.coment || ""}
             </span>,
 
-            /* ACCIÓN */
+            /* ACCIÓN - Implementada con el nuevo componente ActionMenu */
             <div className="flex justify-center">
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="h-8 w-8 p-0 rounded-xl hover:bg-teal-50 text-slate-400 hover:text-teal-600 transition-all"
-              >
-                <Eye className="w-4 h-4" />
-              </Button>
-            </div>,
+              <ActionMenu 
+                title="Gestión de Oportunidad"
+                options={[
+                  { 
+                    label: "Cambiar Estado", 
+                    icon: RefreshCw, // Asegúrate de importar RefreshCw de lucide-react
+                    onClick: () => handleCambiarEstado(o.num_reg_op) 
+                  },
+                  // Aquí es donde en el futuro solo agregas una línea más y listo:
+                  // { label: "Ver PDF", icon: FileText, onClick: () => generarPDF(o.num_reg_op) },
+                ]}
+              />
+            </div>
           ]}
         />
       </div>

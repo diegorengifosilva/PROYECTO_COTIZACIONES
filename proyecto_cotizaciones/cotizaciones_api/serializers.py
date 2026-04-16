@@ -338,20 +338,90 @@ class NotificacionSerializer(serializers.ModelSerializer):
         model = Notificacion
         fields = "__all__"
 
+#========================================================================================
+
+##=============##
+## OPORTUNIDAD ##
+##=============##
 class DashboardOportunidadTablaSerializer(serializers.ModelSerializer):
-    # Incluimos las propiedades para que lleguen al frontend
+    # Usamos los nombres de las @property del modelo
+    cliente_nombre = serializers.ReadOnlyField()
     area_nombre = serializers.ReadOnlyField()
-    estado_nombre = serializers.ReadOnlyField()
+    estado_nombre = serializers.ReadOnlyField() # Cambiado de estado_op_nombre a estado_nombre
+    tipo_nombre = serializers.ReadOnlyField()
 
     class Meta:
         model = DashboardOportunidad
         fields = [
-            'num_reg', 'codig', 'f_recp', 'f_visit', 'f_limit', 
-            'f_emisi', 'empre', 'nombr', 'contac', 'descr', 
-            'tipo', 'area', 'estad', 'respo', 'comen', 
-            'monto', 'tmone', 'anno_a', 'mes', 'regus',
-            'area_nombre', 'estado_nombre' # Campos extraídos de los @property
+            "num_reg",
+            "num_reg_cot",     # Para mostrar el número de cotización relacionado
+            "f_recp",
+            "numero",          # Antes era "numero"
+            "referencia",          # Antes era "referencia"
+            "cliente_nombre", 
+            "area_nombre",
+            "estado_nombre",
+            "nombc",          # Responsable Comercial
+            "cotit",          # Tipo V/S/P
+            "tipo_nombre",
+            "coment",
+            "nombr",
+            "teler",
         ]
+        
+class DashboardOportunidadSerializer(serializers.ModelSerializer):
+    # ── CAMPOS DE LECTURA (Properties del modelo) ──
+    cliente_nombre = serializers.ReadOnlyField()
+    area_nombre = serializers.ReadOnlyField()
+    estado_nombre = serializers.ReadOnlyField()
+    tipo_nombre = serializers.ReadOnlyField()
+    prob_nombre = serializers.ReadOnlyField() # Agregado para el Dashboard
+
+    class Meta:
+        model = DashboardOportunidad
+        fields = "__all__"
+        # 🚩 NOTA: Quitamos num_reg de read_only si queremos que el serializer 
+        # lo reconozca en el get_or_create, pero lo ideal es manejarlo 
+        # como está abajo para proteger la auditoría.
+        read_only_fields = ["anno", "mes", "anno_a"]
+
+    def validate(self, data):
+        date_fields = ["f_recp", "f_limite", "f_emi", "fecha"]
+
+        for field in date_fields:
+            value = data.get(field)
+
+            if isinstance(value, str) and "T" in value:
+                data[field] = value.split("T")[0]
+
+            if value == "":
+                data[field] = None
+
+        return data
+
+    def to_representation(self, instance):
+        """Limpia nulos para React y formatea decimales"""
+        data = super().to_representation(instance)
+        for field in data:
+            if data[field] is None:
+                # Mantenemos 0 para campos numéricos y "" para texto
+                if field in ['tot_c', 'tcamb', 'des_m', 'des_p', 'plazo', 'valid']:
+                    data[field] = 0
+                else:
+                    data[field] = ""
+        return data
+
+    def validate_prob(self, value):
+        """Validación robusta de probabilidad"""
+        if value not in ["0", "1", "2", "3"]:
+            return "0"
+        return value
+
+    def validate_igv(self, value):
+        """Normaliza el IGV a S o N"""
+        if value in ["S", "N"]:
+            return value
+        return "S" if value is True else "N"
 
 #========================================================================================
 
@@ -374,24 +444,39 @@ class CargosSerializer(serializers.ModelSerializer):
         
 # vc_tab_clientes
 class ClientesSerializer(serializers.ModelSerializer):
-    codigo = serializers.SerializerMethodField()
-    activo = serializers.SerializerMethodField()
+    # Definimos activo como CharField normal para que sea de lectura/escritura
+    activo = serializers.CharField(max_length=1, required=False)
 
     class Meta:
         model = vc_tab_clientes
         fields = "__all__"
 
-    def get_codigo(self, obj):
-        return str(obj.codigo).zfill(5)
+    # --- LÓGICA DE SALIDA (Para el GET) ---
+    def to_representation(self, instance):
+        """Aquí personalizamos cómo se ven los datos al salir (JSON)"""
+        representation = super().to_representation(instance)
+        
+        # 1. Relleno de ceros en el código (00256)
+        representation['codigo'] = str(instance.codigo).zfill(5)
+        
+        # 2. Convertimos el "1"/"0" de la DB a booleano para el Switch de React
+        representation['activo'] = instance.activo == "1" or instance.activo is True
+        
+        return representation
 
-    def get_activo(self, obj):
-        return obj.activo == "1" or obj.activo is True
-
+    # --- LÓGICA DE ENTRADA (Para POST/PUT) ---
     def to_internal_value(self, data):
-        if 'activo' in data:
-            data['activo'] = "1" if data['activo'] is True or data['activo'] == "1" else "0"
-        return super().to_internal_value(data)
-    
+        """Aquí procesamos lo que viene de React antes de validar"""
+        # Hacemos una copia para poder modificar los datos
+        resource_data = data.copy()
+        
+        if 'activo' in resource_data:
+            val = resource_data['activo']
+            # Convertimos true o "1" en "1", cualquier otra cosa en "0"
+            resource_data['activo'] = "1" if val is True or val == "1" else "0"
+            
+        return super().to_internal_value(resource_data)
+
 # vc_tab_clientes_d
 class RepresentantesSerializer(serializers.ModelSerializer):
     # Formateamos el código a 5 dígitos para la respuesta

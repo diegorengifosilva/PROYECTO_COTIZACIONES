@@ -126,6 +126,8 @@ export default function AprobacionCotizacion() {
   const [fechaFin, setFechaFin] = useState("");
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
+  const [oportunidadSeleccionada, setOportunidadSeleccionada] = useState(null);
+  const [detalleOportunidadOpen, setDetalleOportunidadOpen] = useState(false);
   const navigate = useNavigate();
   const [openNueva, setOpenNueva] = useState(false);
   const [annoActual, setAnnoActual] = useState(new Date().getFullYear()); // año actual por defecto
@@ -628,8 +630,9 @@ export default function AprobacionCotizacion() {
           onClose={() => setOpenNueva(false)}
           modo="A"
           tipo="N"
-          dashboard="A"
+          dashboard="C"
           cotizaciones={cotizaciones}
+          esOportunidad={tabActiva.includes("oportunidades")}
         />
 
         {cotizacionSeleccionada && (
@@ -640,7 +643,26 @@ export default function AprobacionCotizacion() {
             cotizacion={cotizacionSeleccionada}
             modo="A"
             tipo="V"
-            dashboard="A"
+            dashboard="C"
+            esOportunidad={tabActiva.includes("oportunidades")}
+          />
+        )}
+
+        {oportunidadSeleccionada && (
+          <AprobacionCotizacionModal
+            key={`op-${oportunidadSeleccionada.num_reg || oportunidadSeleccionada.id}`} 
+            open={detalleOportunidadOpen}
+            onClose={() => {
+              setDetalleOportunidadOpen(false);
+              setOportunidadSeleccionada(null); // Limpiamos el estado
+            }}
+            // IMPORTANTE: Pasamos la oportunidad como 'cotizacion' 
+            // porque el modal espera ese nombre de prop
+            cotizacion={oportunidadSeleccionada} 
+            modo="A"
+            tipo="V"
+            dashboard="O"
+            esOportunidad={true} // <--- Aquí forzamos que se vea la fila de seguimiento
           />
         )}
       </div>

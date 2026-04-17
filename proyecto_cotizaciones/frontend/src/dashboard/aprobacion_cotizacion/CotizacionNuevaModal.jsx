@@ -508,7 +508,7 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
 
     const payload = {
       ...data,
-      num_reg: nuevoNumOportunidad,
+      //num_reg: nuevoNumOportunidad, // Envio de num_reg para oportunidades
       detalle: {
         ...data.detalle,
         // ❌ NO enviar tot_c calculado
@@ -1591,13 +1591,14 @@ export default function CotizacionNuevaModal({ open, onClose, cotizacion, modo, 
             <div className="flex items-center gap-2">
             {/* Título fijo */}
             <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">
-              Nueva Oportuniad
+              Nueva Cotización
             </h2>
 
             {/* Registro interno: solo de DashboardOportunidad */}
             {nuevoNumOportunidad && (
               <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-200 uppercase tracking-widest">
-                {nuevoNumOportunidad}
+                {/*{nuevoNumOportunidad}*/}
+                {numReg}
               </span>
             )}
             </div>

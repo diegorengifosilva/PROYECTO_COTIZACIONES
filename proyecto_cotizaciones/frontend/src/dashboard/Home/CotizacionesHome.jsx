@@ -351,7 +351,7 @@ export default function CotizacionesHome() {
               { id: "rendimiento", label: "Rendimiento", icon: <ListTodo size={16} /> },
               { id: "analisis", label: "Análisis", icon: <Layout size={16} /> },
               { id: "automatizacion", label: "Automatización", icon: <History size={16} /> },
-              { id: "historial", label: "Historial", icon: <History size={16} /> },
+              /* { id: "historial", label: "Historial", icon: <History size={16} /> }, */
             ].map((tab) => {
               const isActive = tabActiva === tab.id;
               return (

@@ -960,7 +960,8 @@ def guardar_cotizacion(request):
 
         if not cotizacion:
             # SI NO EXISTE: Es una creación nueva.
-            nuevo_num = num_reg_frontend if num_reg_frontend else obtener_siguiente_num_reg()
+            # nuevo_num = num_reg_frontend if num_reg_frontend else obtener_siguiente_num_reg()
+            nuevo_num = obtener_siguiente_num_reg()
             hoy = timezone.now()
             
             # 💡 IMPORTANTE: Pasamos anno_a y campos críticos directamente en el .create()
@@ -3790,6 +3791,44 @@ def lista_clientes(request):
         except Exception:
             return Response({"error": "No se puede eliminar: el registro tiene datos asociados"}, status=status.HTTP_400_BAD_REQUEST)
 
+# Busqueda de clientes
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def buscar_clientes_inline(request):
+    """
+    Endpoint de alto rendimiento para autocompletado de clientes.
+    Usa los campos reales del modelo vc_tab_clientes.
+    """
+    try:
+        # 1. Obtener parámetro de búsqueda
+        query = request.query_params.get('q', '').strip()
+        
+        # 2. Filtrar solo activos
+        # OJO: Usamos 'activo="1"' porque en tu modelo es CharField
+        clientes_qs = vc_tab_clientes.objects.filter(activo="1")
+        
+        # 3. Búsqueda multi-campo
+        if query:
+            clientes_qs = clientes_qs.filter(
+                Q(nombre__icontains=query) | 
+                Q(ruc__icontains=query) |
+                Q(codigo__icontains=query) # AutoField permite icontains en Django
+            )
+        
+        # 4. Selección de campos y límite
+        # Traemos solo lo necesario para el buscador de cotizaciones
+        resultados = clientes_qs.order_by('nombre').values('codigo', 'nombre', 'ruc')[:20]
+        
+        return Response(list(resultados), status=status.HTTP_200_OK)
+
+    except Exception as e:
+        # Esto imprimirá el error real en tu consola de Django para que lo veas
+        print(f"❌ Error en buscar_clientes_inline: {str(e)}")
+        return Response(
+            {"error": "Error interno al buscar clientes", "detail": str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 # vc_tab_clientes_d
 @api_view(["GET", "POST", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated])
@@ -3845,6 +3884,33 @@ def lista_representantes(request):
             return Response({"error": "Representante no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": f"Error al eliminar: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+# Busqueda de Representante
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def buscar_representantes_inline(request):
+    try:
+        # 1. 'cliente_codigo' es el valor que viene de la columna 'empre' de la cotización
+        cliente_id = request.query_params.get('cliente_codigo', '').strip()
+        query = request.query_params.get('q', '').strip()
+
+        if not cliente_id:
+            return Response([], status=status.HTTP_200_OK)
+
+        # 2. Buscamos en vc_tab_clientes_d donde la columna 'empresa' coincida
+        qs = vc_tab_clientes_d.objects.filter(empresa=cliente_id, activo="1")
+
+        if query:
+            qs = qs.filter(representante__icontains=query)
+
+        # 3. Retornamos los datos limpios
+        resultados = qs.order_by('representante').values(
+            'codigo', 'representante', 'cargo', 'telefono', 'movil', 'email'
+        )[:20]
+
+        return Response(list(resultados), status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # vc_tab_estado
 @api_view(["GET"])

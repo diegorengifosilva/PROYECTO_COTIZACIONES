@@ -236,7 +236,7 @@ export default function Cotizaciones() {
               { id: "resumen", label: "Resumen", icon: <Globe size={16} /> },
               { id: "cotizaciones", label: "Cotizaciones", icon: <ListTodo size={16} /> },
               { id: "tablero", label: "Tablero", icon: <Layout size={16} /> },
-              { id: "historial", label: "Historial", icon: <History size={16} /> },
+              /* { id: "historial", label: "Historial", icon: <History size={16} /> },*/
             ].map((tab) => {
               const isActive = tabActiva === tab.id;
               return (

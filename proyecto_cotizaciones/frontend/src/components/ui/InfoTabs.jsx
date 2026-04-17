@@ -278,22 +278,11 @@ export default function InfoTabs({
   // ===========
   // CLIENTES
   // ===========
-  useEffect(() => {
-      const fetchClientes = async () => {
-          const res = await api.get("/cotizaciones/clientes/");
-          setClientes(res.data);
-      };
-      fetchClientes();
-  }, []); 
-
   const clientesOptions = useMemo(
     () => clientes.map((c) => ({ id: c.codigo, nombre: c.nombre })),
     [clientes]
   );
-
-  // ======= CLIENTES =======
   const clienteRef = useRef(null);
-
   const [clienteQuery, setClienteQuery] = useState("");
   const [clienteResults, setClienteResults] = useState([]);
   const [clienteFocused, setClienteFocused] = useState(false);
@@ -306,7 +295,8 @@ export default function InfoTabs({
   const fetchClientesInline = async (q = "") => {
     setClienteLoading(true);
     try {
-      const { data: res } = await api.get("/cotizaciones/clientes/", {
+      // Usamos la nueva ruta de búsqueda rápida
+      const { data: res } = await api.get("/cotizaciones/clientes/search/", {
         params: { q }
       });
       setClienteResults(Array.isArray(res) ? res : []);
@@ -364,172 +354,143 @@ export default function InfoTabs({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  //=============
-  // ENCARGADOS
-  //=============
-  const [encargadoQuery, setEncargadoQuery] = useState("");
-  const [encargadosResults, setEncargadosResults] = useState([]);
-  const [encargadosLoading, setEncargadosLoading] = useState(false);
-  const [showEncargadosDropdown, setShowEncargadosDropdown] = useState(false);
-  const [highlightEncargadoIndex, setHighlightEncargadoIndex] = useState(-1);
-  const [encargadoFocused, setEncargadoFocused] = useState(false);
-
-  const encargadosRef = useRef(null);
-
-  // 🔁 hidrata input desde DB (cliente_nombre > nombr)
+  // Sincronizar el BUSCADOR con el CÓDIGO guardado
+  // Actualizar este bloque
   useEffect(() => {
-    if (!encargadoFocused) {
-      if (data.cliente_nombre) {
-        setEncargadoQuery(data.cliente_nombre);
-      } else if (data.nombr) {
-        setEncargadoQuery(data.nombr);
-      } else {
-        setEncargadoQuery("");
-      }
-    }
-  }, [data.cliente_nombre, data.nombr, encargadoFocused]);
-
-  // 🔎 búsqueda con debounce
-  useEffect(() => {
-    if (!encargadoFocused) return;
-    if (isReadOnly || !data.cliente_codigo) return;
-
-    const q = encargadoQuery.trim();
-
-    const t = setTimeout(() => {
-      fetchEncargadosInline(q);
-      setShowEncargadosDropdown(true);
-    }, 300);
-
-    return () => clearTimeout(t);
-
-  }, [encargadoQuery, data.cliente_codigo, encargadoFocused, isReadOnly]);
-
-  // 🧹 si borran manualmente → limpia campos derivados
-  useEffect(() => {
-    if (!encargadoFocused) return;
-
-    if (encargadoQuery === "") {
-      setData(prev => ({
-        ...prev,
-        cliente_nombre: "",
-        nombr: "",
-        codir: "",
-        cargo: "",
-        mailr: "",
-        teler: "",
-        movir: "",
-      }));
-
-      setEncargadosResults([]);
-      setShowEncargadosDropdown(false);
-      setHighlightEncargadoIndex(-1);
-    }
-  }, [encargadoQuery, encargadoFocused]);
-
-  // 🔄 reset cuando cambia cliente
-  useEffect(() => {
-    setEncargadoQuery("");
-    setEncargadosResults([]);
-    setShowEncargadosDropdown(false);
-    setHighlightEncargadoIndex(-1);
-
-    setData(prev => ({
-      ...prev,
-      cliente_nombre: "",
-      nombr: "",
-      codir: "",
-      cargo: "",
-      mailr: "",
-      teler: "",
-      movir: "",
-    }));
-
-  }, [data.cliente_codigo]);
-
-  // 🖱 click fuera
-  useEffect(() => {
-
-    const handleClickOutside = (e) => {
-      if (
-        encargadosRef.current &&
-        !encargadosRef.current.contains(e.target)
-      ) {
-        setShowEncargadosDropdown(false);
-        setHighlightEncargadoIndex(-1);
+    const sincronizarNombre = async () => {
+      // Si tenemos código pero el input está vacío y no estamos en "creación nueva"
+      if (data.cliente_codigo && !clienteQuery) {
+        try {
+          // Buscamos el cliente específico por su código usando el nuevo endpoint
+          const { data: res } = await api.get("/cotizaciones/clientes/search/", {
+            params: { q: data.cliente_codigo }
+          });
+          
+          if (res.length > 0) {
+            // El primer resultado debería ser el correcto
+            setClienteQuery(res[0].nombre);
+            setClienteSelected(true);
+          }
+        } catch (err) {
+          console.error("Error al sincronizar nombre del cliente:", err);
+        }
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    sincronizarNombre();
+  }, [data.cliente_codigo]); // Solo depende del código del cliente
 
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside);
+  //=============
+  // ENCARGADOS 
+  //=============
+  const encargadosRef = useRef(null);
+  const [encargadoQuery, setEncargadoQuery] = useState("");
+  const [encargadosResults, setEncargadosResults] = useState([]);
+  const [encargadosLoading, setEncargadosLoading] = useState(false);
+  const [encargadoFocused, setEncargadoFocused] = useState(false);
+  const [showEncargadosDropdown, setShowEncargadosDropdown] = useState(false);
+  const [highlightEncargadoIndex, setHighlightEncargadoIndex] = useState(-1);
 
-  }, []);
-
-  // 🔁 fetch aislado
+  // 1. Fetch de datos desde la DB
   const fetchEncargadosInline = async (q = "") => {
-
     if (!data.cliente_codigo) return;
-
     setEncargadosLoading(true);
-
     try {
-
-      const { data: res } = await api.get(
-        `/clientes/${data.cliente_codigo}/encargados/`,
-        { params: { q } }
-      );
-
+      const { data: res } = await api.get(`/cotizaciones/representantes/search/`, { 
+        params: { cliente_codigo: data.cliente_codigo, q } 
+      });
       setEncargadosResults(Array.isArray(res) ? res : []);
-
     } catch (err) {
-
-      console.error("❌ Error buscando encargados:", err);
+      console.error("❌ Error al traer encargados:", err);
       setEncargadosResults([]);
-
     } finally {
-
       setEncargadosLoading(false);
     }
   };
 
-  // ✅ selección
-  const handleEncargadoSelect = (encargado) => {
+  // 2. Debounce de búsqueda (Igual que Clientes)
+  useEffect(() => {
+    if (!encargadoFocused || isReadOnly || !data.cliente_codigo) return;
 
+    const t = setTimeout(() => {
+      // Si el query está vacío, podemos traer todos los del cliente o nada
+      fetchEncargadosInline(encargadoQuery.trim());
+      setShowEncargadosDropdown(true);
+    }, 300);
+
+    return () => clearTimeout(t);
+  }, [encargadoQuery, encargadoFocused, data.cliente_codigo]);
+
+  // 3. Reset si query vacía
+  useEffect(() => {
+    if (!encargadoQuery) {
+      setEncargadosResults([]);
+      setShowEncargadosDropdown(false);
+      setHighlightEncargadoIndex(-1);
+    }
+  }, [encargadoQuery]);
+
+  // 4. Selección (Igual que Clientes pero con múltiples campos)
+  const handleEncargadoSelect = (encargado) => {
     setData(prev => ({
       ...prev,
-      cliente_nombre: encargado.representante,
-      nombr: encargado.representante, // 🔁 espejo por compatibilidad
+      cliente_nombre: encargado.representante || encargado.nombre,
+      nombr: encargado.representante || encargado.nombre,
       codir: String(encargado.codigo),
-      cargo: encargado.cargo,
-      mailr: encargado.email,
-      teler: encargado.telefono,
-      movir: encargado.movil,
+      cargo: encargado.cargo || "",
+      mailr: encargado.email || "",
+      teler: encargado.telefono || "",
+      movir: encargado.movil || "",
     }));
 
-    setEncargadoQuery(encargado.representante);
+    setEncargadoQuery(encargado.representante || encargado.nombre);
     setShowEncargadosDropdown(false);
     setHighlightEncargadoIndex(-1);
   };
 
-  // UX: cuando hay resultados, destacamos el primero para permitir `Enter`
+  // 5. Click fuera (Cierre seguro)
   useEffect(() => {
-    if (!showEncargadosDropdown) return;
+    const handleClickOutside = (e) => {
+      if (encargadosRef.current && !encargadosRef.current.contains(e.target)) {
+        setShowEncargadosDropdown(false);
+        setHighlightEncargadoIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    if (!encargadosResults || encargadosResults.length === 0) {
-      setHighlightEncargadoIndex(-1);
-      return;
-    }
+  // 6. Sincronización con la DB (Hidratación)
+  useEffect(() => {
+    const sincronizarEncargado = async () => {
+      // Caso A: Ya tenemos el nombre en el objeto data (lo más común al cargar de la DB)
+      if (data.nombr && !encargadoQuery) {
+        setEncargadoQuery(data.nombr);
+        return;
+      }
 
-    if (highlightEncargadoIndex === -1) {
-      setHighlightEncargadoIndex(0);
-    }
-  }, [
-    showEncargadosDropdown,
-    encargadosResults,
-    highlightEncargadoIndex,
-  ]);
+      // Caso B: Tenemos el código (codir) pero no el nombre (nombr)
+      if (data.codir && !encargadoQuery && data.cliente_codigo) {
+        try {
+          const { data: res } = await api.get(`/cotizaciones/representantes/search/`, { 
+            params: { cliente_codigo: data.cliente_codigo, q: data.codir } 
+          });
+          
+          // Buscamos el que coincida exactamente con el código
+          const exacto = res.find(e => String(e.codigo) === String(data.codir));
+          if (exacto) {
+            setEncargadoQuery(exacto.representante);
+          } else if (res.length > 0) {
+            setEncargadoQuery(res[0].representante);
+          }
+        } catch (err) {
+          console.error("❌ Error al sincronizar encargado:", err);
+        }
+      }
+    };
+
+    sincronizarEncargado();
+  }, [data.codir, data.nombr, data.cliente_codigo]); // Se dispara si cambia el código, el nombre o el cliente
 
   //================
   // COMERCIAL
@@ -2409,52 +2370,127 @@ export default function InfoTabs({
                   {/* CLIENTE */}
                   <div className="col-span-12 xl:col-span-3 bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-3">
                     <div className="border-b pb-1">
-                      <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">
-                        Cliente
-                      </p>
+                      <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">Cliente</p>
                     </div>
 
-                    <SelectField id="cliente_codigo" inline size="sm" label="Para:*" value={data.cliente_codigo || ""} onChange={(e)=>handleFieldChange("cliente_codigo", e.target.value)} options={clientes.map(c=>({id:c.codigo,nombre:c.nombre}))} disabled={isReadOnly}/>
+                    {/* PARA */}
+                    <div ref={clienteRef} className="relative flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-gray-600 w-[72px]">Para:*</label>
+                      
+                      <div className="flex-1 relative">
+                        <input
+                          value={clienteQuery}
+                          disabled={isReadOnly}
+                          placeholder="Escriba para buscar cliente..."
+                          onFocus={() => {
+                            setClienteFocused(true);
+                            if (clienteQuery) setShowClienteDropdown(true);
+                          }}
+                          onChange={(e) => {
+                            setClienteQuery(e.target.value);
+                            setClienteSelected(false); // Si escribe de nuevo, ya no está "seleccionado" del todo
+                            handleFieldChange("cliente_codigo", ""); // Opcional: limpiar el código hasta que elija uno
+                          }}
+                          className={`w-full border rounded-md px-2 py-1 text-xs outline-none transition-all
+                            ${campoError === "cliente_codigo" ? "border-red-400 bg-red-50" : "border-gray-300 focus:ring-1 focus:ring-teal-500"}
+                            ${isReadOnly ? "bg-gray-100 italic" : "bg-white"}`}
+                        />
+
+                        {/* DROPDOWN DE RESULTADOS */}
+                        {showClienteDropdown && (clienteResults.length > 0 || clienteLoading) && (
+                          <div className="absolute z-[60] w-full bg-white border border-gray-200 rounded-md shadow-xl mt-1 max-h-60 overflow-y-auto">
+                            {clienteLoading ? (
+                              <div className="p-2 text-center text-xs text-gray-400">Buscando...</div>
+                            ) : (
+                              clienteResults.map((c, index) => (
+                                <div
+                                  key={c.codigo}
+                                  onClick={() => handleClienteSelect(c)}
+                                  className={`px-3 py-2 text-[11px] cursor-pointer border-b last:border-none
+                                    ${highlightClienteIndex === index ? "bg-teal-500 text-white" : "hover:bg-teal-50 text-gray-700"}`}
+                                >
+                                  <div className="font-bold">{c.nombre}</div>
+                                  <div className={`${highlightClienteIndex === index ? "text-teal-100" : "text-gray-400"} text-[9px]`}>
+                                    Código: {c.codigo} {c.ruc ? `| RUC: ${c.ruc}` : ""}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     {/* ATENCIÓN */}
-                    <div ref={encargadosRef} className="flex items-center gap-2">
-
+                    <div ref={encargadosRef} className="relative flex items-center gap-2">
                       <label className="text-[11px] font-semibold text-gray-600 w-[72px]">
                         Atención:
                       </label>
 
-                      <input
-                        value={encargadoQuery}
-                        disabled={isReadOnly || !data.cliente_codigo}
-                        placeholder="Buscar encargado..."
-                        onFocus={()=>{
-                          setEncargadoFocused(true)
-                          fetchEncargadosInline("")
-                          setShowEncargadosDropdown(true)
-                        }}
-                        onBlur={()=>setTimeout(()=>{
-                          setEncargadoFocused(false)
-                          setShowEncargadosDropdown(false)
-                        },150)}
-                        onChange={(e)=>{
-                          setEncargadoQuery(e.target.value)
-                          setHighlightEncargadoIndex(-1)
-                          handleFieldChange("encargado_codigo","")
-                        }}
-                        className={`flex-1 border rounded-md px-2 py-1 text-xs focus:ring-1 focus:ring-teal-500 outline-none transition-all
-                        ${campoError==="encargado_codigo"?"border-red-400 bg-red-50":"border-gray-300"}
-                        ${(isReadOnly||!data.cliente_codigo)?"bg-gray-100 italic":"bg-white"}`}
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          value={encargadoQuery}
+                          disabled={isReadOnly || !data.cliente_codigo}
+                          placeholder={data.cliente_codigo ? "Buscar encargado..." : "Seleccione un cliente primero"}
+                          onFocus={(e) => {
+                            e.stopPropagation(); // Evita interferencias
+                            setEncargadoFocused(true);
+                            // Cargamos la lista completa (query vacío) para mostrar opciones de inmediato
+                            fetchEncargadosInline(""); 
+                            setShowEncargadosDropdown(true);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEncargadoQuery(val);
+                            setHighlightEncargadoIndex(-1);
+                            
+                            // Si borra todo, limpiamos los datos del encargado
+                            if (val === "") {
+                              setData(prev => ({ 
+                                ...prev, 
+                                nombr: "", codir: "", cargo: "", teler: "", movir: "", mailr: "", cliente_nombre: "" 
+                              }));
+                            }
+                          }}
+                          // Asegúrate de que no haya ningún onBlur residual aquí
+                          className={`w-full border rounded-md px-2 py-1 text-xs outline-none transition-all
+                            ${campoError === "encargado_codigo" ? "border-red-400 bg-red-50" : "border-gray-300 focus:ring-1 focus:ring-teal-500"}
+                            ${(isReadOnly || !data.cliente_codigo) ? "bg-gray-100 italic cursor-not-allowed" : "bg-white"}`}
+                        />
 
+                        {/* DROPDOWN DE ENCARGADOS */}
+                        {showEncargadosDropdown && (encargadosResults.length > 0 || encargadosLoading) && (
+                          <div className="absolute z-[60] w-full bg-white border border-gray-200 rounded-md shadow-xl mt-1 max-h-60 overflow-y-auto">
+                            {encargadosLoading ? (
+                              <div className="p-2 text-center text-xs text-gray-400">Buscando...</div>
+                            ) : (
+                              encargadosResults.map((enc, index) => (
+                                <div
+                                  key={enc.codigo}
+                                  onClick={() => handleEncargadoSelect(enc)}
+                                  className={`px-3 py-2 text-[11px] cursor-pointer border-b last:border-none
+                                    ${highlightEncargadoIndex === index ? "bg-teal-500 text-white" : "hover:bg-teal-50 text-gray-700"}`}
+                                >
+                                  {/* AQUÍ ESTABA EL ERROR: Usar enc.representante */}
+                                  <div className="font-bold">{enc.representante}</div>
+                                  
+                                  <div className={`text-[9px] ${highlightEncargadoIndex === index ? "text-teal-100" : "text-gray-400"}`}>
+                                    {enc.cargo || "Sin cargo"}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
+                    {/* CARGO - TELEFONO - MOVIL - CORREO */}
                     <div className="grid grid-cols-2 gap-2">
-
                       <InputField inline size="sm" label="Cargo:" value={data.cargo || ""} readOnly={isReadOnly}/>
                       <InputField inline size="sm" label="Teléfono:" value={data.teler || ""} readOnly={isReadOnly}/>
                       <InputField inline size="sm" label="Móvil:" value={data.movir || ""} readOnly={isReadOnly}/>
                       <InputField inline size="sm" label="Email:" value={data.mailr || ""} readOnly={isReadOnly}/>
-
                     </div>
 
                   </div>
@@ -2522,7 +2558,7 @@ export default function InfoTabs({
                         inline
                         size="sm"
                         label="Estado"
-                        value={data.estado_codigo || ""}
+                        value={data.estado_codigo || (esNueva ? "2" : "")}
                         onChange={(e)=>handleFieldChange("estado_codigo", e.target.value)}
                         disabled={isReadOnly}
                         options={estadosOptions}
@@ -2614,7 +2650,7 @@ export default function InfoTabs({
                         inline
                         size="sm"
                         label="Moneda"
-                        value={data.tmone || ""}
+                        value={data.tmone || (esNueva ? "D" : "")}
                         onChange={(e)=>handleFieldChange("tmone", e.target.value)}
                         options={monedasOptions}
                         disabled={isReadOnly}
@@ -2634,7 +2670,7 @@ export default function InfoTabs({
                         inline
                         size="sm"
                         label="T.C."
-                        value={data.tcamb || ""}
+                        value={data.tcamb || (esNueva ? "3.425" : "")}
                         onChange={(e)=>handleFieldChange("tcamb", e.target.value)}
                         readOnly={isReadOnly}
                       />

@@ -264,7 +264,7 @@
             color: white;
             /* Superior/Inferior: 0 | Izquierda/Derecha: 0.32cm */
             padding: 0.2cm 0.32cm; 
-            border-radius: 5px;
+            border-radius: 2px;
             display: inline-block;
             /* Ajuste de línea exacto a tu Word */
             line-height: 1.15; 
@@ -277,11 +277,14 @@
         .summary-grid {
             display: table;
             width: 100%;
-            border-spacing: 10px; /* Espacio entre los cuadros */
+            border-spacing: 10px 0;
             margin-left: -10px;
+            margin-bottom: 0px !important; /* Fuerza a que no haya espacio abajo */
+            padding-bottom: 0px !important;
         }
 
         .summary-item {
+            flex: 1; 
             display: table-cell;
             width: 50%;
             vertical-align: top;
@@ -289,13 +292,10 @@
 
         .data-card {
             background: #ffffff;
-            /* Color exacto solicitado y grosor de 1.5pt */
-            border: 2px solid rgb(221, 221, 229); 
-            /* Ajustamos el padding a 12px para compensar el borde más grueso */
+            border: 1px solid rgb(221, 221, 229); 
             padding: 12px 15px;
-            /* Mantenemos tus 10px de radio que calzan bien con el estilo */
-            border-radius: 10px;
-            margin-bottom: 10px;
+            border-radius: 2px;
+            margin-bottom: 10px; /* <--- Cambiado de 10px a 5px */
         }
 
         .data-card .label {
@@ -800,16 +800,7 @@
             <table style="width: 100%; border-collapse: collapse; table-layout: fixed; border: none;">
                 <tr>
                     <td style="width: 60%; text-align: left; vertical-align: bottom; padding: 0;">
-                        <h2 style="
-                            color: #000000; 
-                            margin: 0; 
-                            font-size: 22pt; 
-                            font-weight: bold; 
-                            display: inline-block; 
-                            border-bottom: 2.5pt solid rgb(42, 145, 142); 
-                            padding-bottom: 1px;
-                            line-height: 1.15;
-                        ">
+                        <h2 style="color: #000000; margin: 0; font-size: 22pt; font-weight: bold; display: inline-block; border-bottom: 2.5pt solid rgb(42, 145, 142); padding-bottom: 1px; line-height: 1.15;">
                             Resumen de la Propuesta
                         </h2>
                     </td>
@@ -822,11 +813,10 @@
             </table>
         </div>
 
-        <div style="margin-top: 10px;">
-            <div class="data-card">
-                <span class="label">Referencia</span>
-                <div class="value"><strong>{{ cabecera.referencia|upper }}</strong></div>
-            </div>
+        <p class="subtit">1. DATOS GENERALES</p>
+        <div class="data-card" style="margin-top: 5px;">
+            <span class="label">Referencia</span>
+            <div class="value"><strong>{{ cabecera.referencia|upper }}</strong></div>
         </div>
         
         <div class="summary-grid">
@@ -835,24 +825,14 @@
                     <span class="label">Atención:</span>
                     <div class="value">
                         <strong>{{ cabecera.cliente|upper }}</strong><br>
-                        
                         {% if cabecera.atencion.nombre %}
-                        <div class="line">
-                            <strong>Representante:</strong> {{ cabecera.atencion.nombre }} 
-                            {% if cabecera.atencion.cargo %} – {{ cabecera.atencion.cargo }}{% endif %}
-                        </div>
+                        <div class="line"><strong>Representante:</strong> {{ cabecera.atencion.nombre }}</div>
                         {% endif %}
-
                         {% if cabecera.atencion.telefono %}
-                        <div class="line">
-                            <strong>• Teléfono:</strong> {{ cabecera.atencion.telefono }}
-                        </div>
+                        <div class="line"><strong>• Teléfono:</strong> {{ cabecera.atencion.telefono }}</div>
                         {% endif %}
-
                         {% if cabecera.atencion.correo %}
-                        <div class="line">
-                            <strong>• Correo:</strong> {{ cabecera.atencion.correo }}
-                        </div>
+                        <div class="line"><strong>• Correo:</strong> {{ cabecera.atencion.correo }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -862,124 +842,78 @@
                 <div class="data-card">
                     <span class="label">Emitido por:</span>
                     <div class="value">
-                        <strong>V&C Corporation SAC</strong><br>
-                        <div class="line">
-                            RUC: 20508558997<br>
-                            Asoc. Villa Rica Mz. S Lote 1 – Chaclacayo – Lima – Perú
-                        </div>
+                        <strong>V&C CORPORATION SAC</strong><br>
+                        <div class="line">RUC: 20508558997</div>
+                        <div class="line">Asoc. Villa Rica Mz. S Lote 1 – Chaclacayo</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="summary-grid" style="margin-top: 0;">
-          {% if cabecera.comercial.nombre or cabecera.comercial.telefono or cabecera.comercial.correo %}
-          <div class="summary-item">
-            <div class="data-card">
-                <span class="label">Contacto Comercial:</span>
-
-                {% if cabecera.comercial.nombre or cabecera.comercial.telefono or cabecera.comercial.correo %}
-                <div class="value">
-                    {% if cabecera.comercial.nombre %}
-                        <div class="line strong">{{ cabecera.comercial.nombre }}</div>
-                    {% endif %}
-
-                    {% if cabecera.comercial.telefono %}
-                        <div class="line">
-                            <strong>• Teléfono:</strong> {{ cabecera.comercial.telefono }}
-                        </div>
-                    {% endif %}
-
-                    {% if cabecera.comercial.correo %}
-                        <div class="line">
-                            <strong>• Correo:</strong> {{ cabecera.comercial.correo }}
-                        </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-          </div>
-          {% endif %}
-
-          {% if cabecera.tecnico.nombre or cabecera.tecnico.telefono or cabecera.tecnico.correo %}
-          <div class="summary-item">
-            <div class="data-card">
-                <span class="label">Contacto Técnico:</span>
-
-                {% if cabecera.tecnico.nombre or cabecera.tecnico.telefono or cabecera.tecnico.correo %}
-                <div class="value">
-                    {% if cabecera.tecnico.nombre %}
-                        <div class="line strong">{{ cabecera.tecnico.nombre }}</div>
-                    {% endif %}
-
-                    {% if cabecera.tecnico.telefono %}
-                        <div class="line">
-                            <strong>• Teléfono:</strong> {{ cabecera.tecnico.telefono }}
-                        </div>
-                    {% endif %}
-
-                    {% if cabecera.tecnico.correo %}
-                        <div class="line">
-                            <strong>• Correo:</strong> {{ cabecera.tecnico.correo }}
-                        </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-          </div>
-          {% endif %}
-        </div>
-
-        <div class="summary-grid" style="margin-top: 0;">
-            {% if cabecera.tiempo_entrega.suministros.cantidad > 0 or cabecera.tiempo_entrega.servicios.cantidad > 0 %}
+        <p class="subtit">2. CONTACTOS</p>
+        <div class="summary-grid">
             <div class="summary-item">
                 <div class="data-card">
-                    <span class="label">Tiempos de Entrega:</span>
+                    <span class="label">Comercial:</span>
                     <div class="value">
-                        {% if cabecera.tiempo_entrega.suministros.cantidad and cabecera.tiempo_entrega.suministros.cantidad > 0 %}
-                            <div class="line">
-                                <strong>• Suministros:</strong> {{ cabecera.tiempo_entrega.suministros.cantidad }} {{ cabecera.tiempo_entrega.suministros.tipo }}
-                            </div>
+                        <div class="line strong">{{ cabecera.comercial.nombre }}</div>
+                        {% if cabecera.comercial.telefono %}
+                        <div class="line"><strong>• Teléfono:</strong> {{ cabecera.comercial.telefono }}</div>
                         {% endif %}
+                        {% if cabecera.comercial.correo %}
+                        <div class="line"><strong>• Correo:</strong> {{ cabecera.comercial.correo }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
 
-                        {% if cabecera.tiempo_entrega.servicios.cantidad and cabecera.tiempo_entrega.servicios.cantidad > 0 %}
-                            <div class="line">
-                                <strong>• Servicios:</strong> {{ cabecera.tiempo_entrega.servicios.cantidad }} {{ cabecera.tiempo_entrega.servicios.tipo }}
-                            </div>
+            {% if cabecera.tecnico.nombre %}
+            <div class="summary-item">
+                <div class="data-card">
+                    <span class="label">Técnico:</span>
+                    <div class="value">
+                        <div class="line strong">{{ cabecera.tecnico.nombre }}</div>
+                        {% if cabecera.tecnico.telefono %}
+                        <div class="line"><strong>• Teléfono:</strong> {{ cabecera.tecnico.telefono }}</div>
+                        {% endif %}
+                        {% if cabecera.tecnico.correo %}
+                        <div class="line"><strong>• Correo:</strong> {{ cabecera.tecnico.correo }}</div>
                         {% endif %}
                     </div>
                 </div>
             </div>
             {% endif %}
+        </div>
 
+        <p class="subtit">3. CONDICIONES Y ENTREGA</p>
+        <div class="summary-grid">
             <div class="summary-item">
                 <div class="data-card">
                     <span class="label">Condiciones Comerciales:</span>
                     <div class="value">
-                        {% if cabecera.moneda %}
-                            <div class="line"><strong>• Moneda:</strong> {{ cabecera.moneda }}</div>
+                        <div class="line"><strong>• Moneda:</strong> {{ cabecera.moneda }}</div>
+                        <div class="line"><strong>• Pago:</strong> {{ cabecera.forma_pago }}</div>
+                        <div class="line"><strong>• IGV:</strong> {% if cabecera.incluye_igv %}Incluye IGV{% else %}No incluye IGV{% endif %}</div>
+                        <div class="line"><strong>• Validez:</strong> {{ cabecera.validez.cantidad }} {{ cabecera.validez.tipo }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if cabecera.tiempo_entrega.suministros.cantidad > 0 or cabecera.tiempo_entrega.servicios.cantidad > 0 %}
+            <div class="summary-item">
+                <div class="data-card">
+                    <span class="label">Tiempos de Entrega:</span>
+                    <div class="value">
+                        {% if cabecera.tiempo_entrega.suministros.cantidad > 0 %}
+                        <div class="line"><strong>• Suministros:</strong> {{ cabecera.tiempo_entrega.suministros.cantidad }} {{ cabecera.tiempo_entrega.suministros.tipo }}</div>
                         {% endif %}
-
-                        {% if cabecera.forma_pago %}
-                            <div class="line"><strong>• Pago:</strong> {{ cabecera.forma_pago }}</div>
-                        {% endif %}
-
-                        <div class="line">
-                            <strong>• IGV:</strong> {% if cabecera.incluye_igv %}Incluye IGV{% else %}No incluye IGV{% endif %}
-                        </div>
-
-                        {% if cabecera.validez.cantidad and cabecera.validez.cantidad > 0 %}
-                            <div class="line">
-                                <strong>• Validez:</strong> {{ cabecera.validez.cantidad }} {{ cabecera.validez.tipo }}
-                            </div>
-                        {% endif %}
-
-                        {% if cabecera.lugar_entrega %}
-                            <div class="line"><strong>• Lugar de Entrega:</strong> {{ cabecera.lugar_entrega }}</div>
+                        {% if cabecera.tiempo_entrega.servicios.cantidad > 0 %}
+                        <div class="line"><strong>• Servicios:</strong> {{ cabecera.tiempo_entrega.servicios.cantidad }} {{ cabecera.tiempo_entrega.servicios.tipo }}</div>
                         {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
